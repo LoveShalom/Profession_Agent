@@ -1,0 +1,27 @@
+# deps / build
+node_modules/
+.next/
+out/
+dist/
+*.tsbuildinfo
+
+# env（含密钥，绝不入库）
+.env
+.env.local
+.env.*.local
+
+# 本地数据卷与备份
+.data/
+*.sqlite
+*.dump
+
+# 日志与评测产物中的敏感内容
+logs/*.local.md
+evals/reports/*.local.md
+
+# 编辑器 / 系统
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db

@@ -1,0 +1,11 @@
+﻿                List of relations
+ Schema |         Name         | Type  |  Owner   
+--------+----------------------+-------+----------
+ public | experiences          | table | postgres
+ public | jobs                 | table | postgres
+ public | llm_usage_logs       | table | postgres
+ public | schema_migrations    | table | postgres
+ public | user_llm_credentials | table | postgres
+ public | users                | table | postgres
+(6 rows)
+

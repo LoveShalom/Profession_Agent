@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# I0 的 CI 门（F-01 §4.1 / E-08 裁决）：
+#   1) 适配层纯净度检查（AC-13 / 红线③）—— 零依赖，必跑
+#   2) 核心单测（node:test，零依赖）—— 必跑
+#   3) doctor --no-network —— 必跑（配置与安全策略自检）
+#   4) lint / typecheck / 评测 —— 需要 npm install，因此仅在 main 或手动触发时跑
+jobs:
+  core:
+    name: 核心检查（零依赖）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: 适配层纯净度（业务代码零厂商 SDK）
+        run: node scripts/check-adapter-purity.mjs
+
+      - name: 核心单元测试
+        run: node scripts/run-tests.mjs
+
+      - name: doctor（离线模式）
+        run: node scripts/doctor.mjs --no-network || true
+
+  full:
+    name: 全量检查（依赖 lint / typecheck）
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: 安装依赖
+        run: npm install --no-audit --no-fund
+
+      - name: Lint
+        run: npm run lint
+
+      - name: 类型检查
+        run: npm run typecheck
+
+      # Promptfoo 评测需要 LLM API Key（E-08：仅 main 与手动触发；fork PR 不跑）
+      - name: Prompt 评测（需要 secrets.LLM_API_KEY）
+        if: ${{ secrets.LLM_API_KEY != '' }}
+        env:
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+        run: echo "评测入口在 F-02 落地后接入（Promptfoo）"

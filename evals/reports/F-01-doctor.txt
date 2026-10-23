@@ -1,0 +1,30 @@
+┌──────────────────────────────────────────────────────────────┐
+│  Profession Search Agent —— doctor（只诊断，不自动修改）      │
+└──────────────────────────────────────────────────────────────┘
+
+体检结果
+
+✅ Node.js 运行时
+     v24.17.0（原生支持 TypeScript 类型剥离）
+✅ .env 校验
+     全部字段合法
+✅ Docker / Compose
+     docker 与 docker compose 均可用
+✅ docker-compose.yml
+     已就绪
+✅ 数据库可达性
+     127.0.0.1:54322 可连接
+✅ 模型接入
+     DeepSeek / deepseek-chat 连通（1592ms）
+✅ 能力摘要
+     tool_calling ✓ | json_schema ✓ | embedding ✗ | context 65536 (source=probe)
+✅ 私网访问
+     默认拒绝私网地址（防 SSRF）
+✅ 出站白名单
+     仅放行：api.deepseek.com
+✅ 遥测
+     已关闭（无外发遥测）
+✅ 权限模式
+     本地单用户（数据归属 00000000-0000-4000-8000-000000000001，无需登录）
+
+合计：11 项检查，0 项失败，0 项提示

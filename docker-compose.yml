@@ -1,0 +1,42 @@
+services:
+  # 数据层：仅 Postgres + pgvector 的精简栈（F-01 风险回退方案：镜像体积小、启动快）
+  # 若需要完整 Supabase 本地栈（Auth/Storage/Studio），改用 `supabase start`（见 README）。
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: psa-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+      TZ: Asia/Shanghai
+    ports:
+      - "54322:5432"
+    volumes:
+      - ./.data/pgdata:/var/lib/postgresql/data
+      # 首次启动自动执行迁移（按文件名顺序）；后续增量迁移用 npm run db:migrate
+      - ./supabase/migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # 容器化运行应用（可选）：需要联网 npm install，因此默认不启用
+  # 用法：docker compose --profile full up -d
+  app:
+    profiles: ["full"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: psa-app
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/postgres
+    ports:
+      - "${APP_PORT:-3000}:3000"
