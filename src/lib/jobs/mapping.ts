@@ -77,7 +77,11 @@ export function collectSkillNames(skills: readonly SkillItem[]): string[] {
 }
 
 /** 抽取结果 + 校验结果 → jobs 一等列 */
-export function toJobDraft(extraction: JdExtraction, validation: ValidateResult): JobDraft {
+export function toJobDraft(
+  extraction: JdExtraction,
+  validation: ValidateResult,
+  extra: { sourceImage?: string } = {},
+): JobDraft {
   const fields = extraction.fields;
   const fingerprint = buildFingerprint({ company: fields.company, title: fields.title, cities: fields.cities });
 
@@ -110,6 +114,7 @@ export function toJobDraft(extraction: JdExtraction, validation: ValidateResult)
       evidence: extraction.evidence,
       confidence: extraction.confidence,
       needsReview: extraction.needsReview,
+      ...(extra.sourceImage ? { sourceImage: extra.sourceImage } : {}),
     },
     review_flags: validation.needsReview,
     fingerprint,

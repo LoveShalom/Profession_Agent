@@ -13,7 +13,7 @@ import type { PoolClient } from 'pg';
 
 import type { JobDraft, JobSkillRow } from '../jobs/mapping.ts';
 
-import type { JobRecord, JobRepository, ListJobsOptions } from './types.ts';
+import type { JobRecord, JobPatch, JobRepository, ListJobsOptions } from './types.ts';
 
 const JOB_COLUMNS = [
   'user_id',
@@ -117,6 +117,13 @@ function toRecord(row: Record<string, unknown>): JobRecord {
     fingerprint: String(row['fingerprint']),
     status: String(row['status']) as JobRecord['status'],
     priority: String(row['priority']) as JobRecord['priority'],
+    revision: row['revision'] === null || row['revision'] === undefined ? 1 : Number(row['revision']),
+    notes: row['notes'] === null || row['notes'] === undefined ? '' : String(row['notes']),
+    nextAction: row['next_action'] === null || row['next_action'] === undefined ? null : String(row['next_action']),
+    nextActionAt:
+      row['next_action_at'] === null || row['next_action_at'] === undefined
+        ? null
+        : new Date(String(row['next_action_at'])).toISOString(),
     createdAt: new Date(String(row['created_at'])).toISOString(),
     updatedAt: new Date(String(row['updated_at'])).toISOString(),
   };
@@ -133,6 +140,105 @@ export async function createPostgresJobRepository(connectionString: string): Pro
       );
       const row = result.rows[0] as Record<string, unknown> | undefined;
       return row ? toRecord(row) : null;
+    },
+
+    async findById(userId: string, id: string): Promise<JobRecord | null> {
+      const result = await pool.query('select * from jobs where user_id = $1 and id = $2 and deleted_at is null limit 1', [
+        userId,
+        id,
+      ]);
+      const row = result.rows[0] as Record<string, unknown> | undefined;
+      return row ? toRecord(row) : null;
+    },
+
+    /** 台账同步的部分更新。`expectedRevision` 不匹配 → 返回 null（交给上层按"用户优先"处理） */
+    async update(userId: string, id: string, patch: JobPatch): Promise<JobRecord | null> {
+      const columnOf: Record<string, string> = {
+        company: 'company',
+        title: 'title',
+        cities: 'cities',
+        job_type: 'job_type',
+        graduation_year: 'graduation_year',
+        education: 'education',
+        salary_min: 'salary_min',
+        salary_max: 'salary_max',
+        salary_months: 'salary_months',
+        salary_negotiable: 'salary_negotiable',
+        deadline: 'deadline',
+        deadline_kind: 'deadline_kind',
+        deadline_text: 'deadline_text',
+        status: 'status',
+        priority: 'priority',
+        nextAction: 'next_action',
+        nextActionAt: 'next_action_at',
+        notes: 'notes',
+        skills: 'skills',
+        review_flags: 'review_flags',
+      };
+      const sets: string[] = [];
+      const values: unknown[] = [];
+      for (const [key, column] of Object.entries(columnOf)) {
+        const value = (patch as Record<string, unknown>)[key];
+        if (value === undefined) continue;
+        values.push(value);
+        sets.push(`${column} = $${values.length}`);
+      }
+      // 改城市时同步首城列（jobs.city 是 cities[0] 的冗余列，列表/筛选依赖它）
+      if (Array.isArray(patch.cities)) {
+        values.push(patch.cities[0] ?? null);
+        sets.push(`city = $${values.length}`);
+      }
+      if (sets.length === 0) {
+        // 没有任何可改字段：回读原行（避免 `this` 在对象字面量里的类型歧义）
+        const existing = await pool.query(
+          'select * from jobs where user_id = $1 and id = $2 and deleted_at is null limit 1',
+          [userId, id],
+        );
+        const row = existing.rows[0] as Record<string, unknown> | undefined;
+        return row ? toRecord(row) : null;
+      }
+
+      values.push(userId, id);
+      let sql = `update jobs set ${sets.join(', ')}, revision = revision + 1, updated_at = now() where user_id = $${values.length - 1} and id = $${values.length} and deleted_at is null`;
+      if (patch.expectedRevision !== undefined) {
+        values.push(patch.expectedRevision);
+        sql += ` and revision = $${values.length}`;
+      }
+      const result = await pool.query(`${sql} returning *`, values);
+      const row = result.rows[0] as Record<string, unknown> | undefined;
+      return row ? toRecord(row) : null;
+    },
+
+    /** 用人工校准后的明确技能替换 explicit 行；inferred 保留（F-03 主表技能列） */
+    async replaceExplicitSkills(userId: string, jobId: string, skills: readonly JobSkillRow[]): Promise<void> {
+      const client: PoolClient = await pool.connect();
+      try {
+        await client.query('begin');
+        await client.query("delete from job_skills where user_id = $1 and job_id = $2 and source = 'explicit'", [
+          userId,
+          jobId,
+        ]);
+        for (const skill of skills) {
+          await client.query(
+            `insert into job_skills (user_id, job_id, skill, source, requirement, proficiency, confidence, basis_phrase, rule_id)
+             values ($1, $2, $3, 'explicit', $4, $5, $6, $7, $8)
+             on conflict (job_id, skill, source) do nothing`,
+            [userId, jobId, skill.skill, skill.requirement, skill.proficiency, skill.confidence, skill.basisPhrase, skill.ruleId],
+          );
+        }
+        await client.query(
+          `update jobs set skills = (
+             select coalesce(array_agg(distinct js.skill), '{}'::text[]) from job_skills js where js.job_id = $1
+           ), revision = revision + 1, updated_at = now() where user_id = $2 and id = $1`,
+          [jobId, userId],
+        );
+        await client.query('commit');
+      } catch (error) {
+        await client.query('rollback').catch(() => undefined);
+        throw error;
+      } finally {
+        client.release();
+      }
     },
 
     async insert(userId: string, draft: JobDraft, skills: readonly JobSkillRow[]): Promise<JobRecord> {

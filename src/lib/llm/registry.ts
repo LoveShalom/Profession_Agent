@@ -204,3 +204,54 @@ export function resolveTaskModel(params: {
   if (params.task === 'generate') return params.modelGenerate?.trim() || params.model;
   return params.embeddingModel?.trim() || params.model;
 }
+
+// ---------------------------------------------------------------- 视觉能力（F-04 截图 OCR）
+/**
+ * 视觉能力**无法像 tool calling 那样探测**（探测本身就要发一张图，成本与失败面都不划算），
+ * 因此按"provider + 模型名是否命中已知视觉模型"来判断：
+ *   - 命中 → 允许走截图识别；
+ *   - 未命中 → 明确告知"当前模型不支持读图"并给出该 provider 的可选视觉模型；
+ *   - custom 网关：无法判断，放行（调用失败会降级为可操作提示）。
+ */
+const VISION_MODEL_PATTERNS: Record<string, readonly string[]> = {
+  // 2026-10 复核：DeepSeek-Flash（V4.1-Flash）已支持 Vision（官方定价页 "Vision ✓"）
+  deepseek: ['deepseek-flash', 'vision'],
+  qwen: ['qwen-vl', 'qwen2-vl', 'qwen2.5-vl', 'qwen3-vl'],
+  kimi: ['vision'],
+  glm: ['glm-4v', 'glm-4.1v', 'glm-4.5v', 'glm-4v-flash', 'glm-ocr'],
+  siliconflow: ['vl', 'vision'],
+  openai: ['gpt-4o', 'gpt-4.1', 'gpt-4-vision', 'gpt-5'],
+  ollama: ['llava', 'qwen2-vl', 'qwen2.5-vl', 'minicpm-v', 'moondream'],
+};
+
+const VISION_MODEL_SUGGESTIONS: Record<string, readonly string[]> = {
+  deepseek: ['deepseek-flash（单 Key 即可，同时也做文本）'],
+  qwen: ['qwen-vl-plus', 'qwen2.5-vl-7b-instruct'],
+  kimi: ['moonshot-v1-vision-preview'],
+  glm: ['glm-4v-flash（官方免费图像理解模型）', 'glm-4.1v-flash'],
+  siliconflow: ['Qwen/Qwen2.5-VL-7B-Instruct'],
+  openai: ['gpt-4o-mini', 'gpt-4.1-mini'],
+  ollama: ['qwen2.5vl:7b', 'llava:7b'],
+};
+
+export function supportsVision(provider: string, model: string): boolean {
+  const name = (provider || '').trim().toLowerCase();
+  const target = (model || '').trim().toLowerCase();
+  if (name === 'custom') return true;
+  if (target.length === 0) return false;
+  const patterns = VISION_MODEL_PATTERNS[name] ?? [];
+  return patterns.some((pattern) => target.includes(pattern));
+}
+
+/** 给 UI/错误提示用的候选视觉模型 */
+export function visionModelSuggestions(provider: string): string[] {
+  const name = (provider || '').trim().toLowerCase();
+  return [...(VISION_MODEL_SUGGESTIONS[name] ?? ['请填写一个支持图片输入的模型名，例如 *-vl / *-vision / gpt-4o'])];
+}
+
+/** 当前配置是否具备读图能力（供 doctor / 设置页展示） */
+export function describeVisionSupport(provider: string, model: string): string {
+  return supportsVision(provider, model)
+    ? `视觉 ✓（${model || '默认模型'}）`
+    : `视觉 ✗（${model || '默认模型'}）→ 截图输入不可用，可用：${visionModelSuggestions(provider)[0]}`;
+}

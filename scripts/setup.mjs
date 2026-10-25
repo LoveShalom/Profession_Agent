@@ -16,6 +16,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 import { generateEncryptionKey } from '../src/lib/env.ts';
+import { applyMissingEnvKeys } from '../src/lib/server/env-file.ts';
 
 const argv = process.argv.slice(2);
 const has = (flag) => argv.includes(flag);
@@ -135,6 +136,15 @@ function ensureEnvFile() {
   if (!currentValue('DATABASE_URL')) {
     upsert('DATABASE_URL', 'postgresql://postgres:postgres@127.0.0.1:54322/postgres');
     changes.push('DATABASE_URL（补默认值）');
+  }
+
+  // 通用补键：模板里有、当前 .env 里完全没有的键（如新增的 LLM_VISION_* / WORKSPACE_DIR）
+  // 只补键名缺失的，已有键（即使值为空）一律不动 —— 与"不覆盖已有值"的幂等约定一致。
+  const templateText = readFileSync(examplePath, 'utf8');
+  const merged = applyMissingEnvKeys(text, templateText);
+  if (merged.added.length > 0) {
+    text = merged.text;
+    changes.push(`补缺失键：${merged.added.join(', ')}`);
   }
   // 端口
   if (Number.isFinite(port) && port > 0) {

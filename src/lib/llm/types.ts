@@ -12,9 +12,29 @@ import type { CapabilityName, ProviderError } from '../errors.ts';
 /** 任务类型：用于任务级模型偏好与用量归因 */
 export type TaskName = 'extract' | 'generate' | 'embed' | 'rerank' | 'probe';
 
+/**
+ * 多模态内容片段（F-04 截图 OCR）
+ *
+ * 采用 OpenAI 兼容的 parts 格式：`{type:'text'}` 与 `{type:'image_url'}`。
+ * Qwen-VL / GLM-4V / GPT-4o / Kimi 视觉等兼容端点都接受这个结构，
+ * 因此**不需要为每个厂商写一套图片消息拼接**（保持"零厂商 SDK"红线）。
+ */
+export type MessagePart =
+  | { type: 'text'; text: string }
+  | { type: 'image_url'; image_url: { url: string } };
+
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant';
-  content: string;
+  content: string | MessagePart[];
+}
+
+/** 取消息里的纯文本部分（日志/用量统计用，不会误把 base64 当文本） */
+export function messageTextContent(message: ChatMessage): string {
+  if (typeof message.content === 'string') return message.content;
+  return message.content
+    .filter((part): part is { type: 'text'; text: string } => part.type === 'text')
+    .map((part) => part.text)
+    .join('\n');
 }
 
 export interface Capabilities {

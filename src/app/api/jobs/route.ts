@@ -31,7 +31,7 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json({ error: { code: 'E_BAD_JSON', message: '请求体不是合法 JSON' } }, { status: 400 });
   }
 
-  const payload = body as { extraction?: unknown; forceCreate?: unknown; confirmedFields?: unknown };
+  const payload = body as { extraction?: unknown; forceCreate?: unknown; confirmedFields?: unknown; sourceImage?: unknown };
   const parsed = JdExtractionSchema.safeParse(payload.extraction);
   if (!parsed.success) {
     return Response.json(
@@ -54,6 +54,14 @@ export async function POST(request: Request): Promise<Response> {
     ? payload.confirmedFields.filter((id): id is FieldId => typeof id === 'string' && isFieldId(id))
     : [];
 
+  // 来源截图：只接受工作区附件目录下的相对路径（防目录穿越 / 任意路径写入）
+  const sourceImage =
+    typeof payload.sourceImage === 'string' &&
+    payload.sourceImage.startsWith('原始JD/attachments/') &&
+    !payload.sourceImage.includes('..')
+      ? payload.sourceImage
+      : undefined;
+
   try {
     const repo = await getJobRepository();
     const result = await saveJob(repo, {
@@ -61,6 +69,7 @@ export async function POST(request: Request): Promise<Response> {
       extraction: parsed.data,
       forceCreate: payload.forceCreate === true,
       ...(confirmedFields.length > 0 ? { confirmedFields } : {}),
+      ...(sourceImage ? { sourceImage } : {}),
     });
     const statusCode = result.status === 'blocked' ? 422 : result.status === 'duplicate' ? 409 : 201;
     return Response.json(result, { status: statusCode });

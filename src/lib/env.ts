@@ -74,6 +74,17 @@ export const ENV_SPEC: readonly EnvFieldSpec[] = [
   { key: 'LLM_MODEL_GENERATE', kind: 'string', emptyMeans: '继承 LLM_MODEL' },
   { key: 'LLM_SAMPLE_K', kind: 'number', default: '3', min: 1, max: 5, integer: true },
 
+  // ---------- 视觉模型（F-04 截图识别专用，未配置时截图功能不可用、其它功能不受影响）----------
+  {
+    key: 'LLM_VISION_PROVIDER',
+    kind: 'string',
+    enum: ['deepseek', 'qwen', 'kimi', 'glm', 'siliconflow', 'openai', 'ollama', 'custom'],
+    emptyMeans: '未配置 → 截图识别不可用（文本抽取不受影响）',
+  },
+  { key: 'LLM_VISION_BASE_URL', kind: 'url', emptyMeans: '使用 provider 内置地址' },
+  { key: 'LLM_VISION_API_KEY', kind: 'string', secret: true, emptyMeans: '继承 LLM_API_KEY' },
+  { key: 'LLM_VISION_MODEL', kind: 'string', emptyMeans: '使用 provider 默认模型（建议显式写视觉模型名，如 qwen-vl-plus）' },
+
   { key: 'EMBEDDING_PROVIDER', kind: 'string', emptyMeans: '检索降级为关键词检索（tsvector）' },
   { key: 'EMBEDDING_MODEL', kind: 'string', emptyMeans: '检索降级为关键词检索（tsvector）' },
 
@@ -108,6 +119,12 @@ export interface Env {
   llmModelExtract?: string;
   llmModelGenerate?: string;
   sampleK: number;
+
+  /** 视觉模型（截图识别用；独立于文本模型，可不同 provider / Key / 模型） */
+  llmVisionProvider?: string;
+  llmVisionBaseUrl?: string;
+  llmVisionApiKey?: string;
+  llmVisionModel?: string;
 
   embeddingProvider?: string;
   embeddingModel?: string;
@@ -285,6 +302,11 @@ export function validateEnv(source: Record<string, string | undefined> = process
     llmModelGenerate: normalized['LLM_MODEL_GENERATE'],
     sampleK: Number(normalized['LLM_SAMPLE_K'] ?? 3),
 
+    llmVisionProvider: normalized['LLM_VISION_PROVIDER'],
+    llmVisionBaseUrl: normalized['LLM_VISION_BASE_URL'],
+    llmVisionApiKey: normalized['LLM_VISION_API_KEY'],
+    llmVisionModel: normalized['LLM_VISION_MODEL'],
+
     embeddingProvider: normalized['EMBEDDING_PROVIDER'],
     embeddingModel: normalized['EMBEDDING_MODEL'],
 
@@ -333,6 +355,14 @@ export function describeEnv(env: Env): string {
         hasApiKey: Boolean(env.llmApiKey),
         llmModel: env.llmModel ?? '(provider 默认)',
         sampleK: env.sampleK,
+        vision: env.llmVisionProvider
+          ? {
+              provider: env.llmVisionProvider,
+              model: env.llmVisionModel ?? '(provider 默认)',
+              baseUrl: env.llmVisionBaseUrl ?? '(provider 内置)',
+              hasApiKey: Boolean(env.llmVisionApiKey ?? env.llmApiKey),
+            }
+          : '(未配置 → 截图识别不可用)',
         enableAuth: env.enableAuth,
         allowPrivateBaseUrl: env.allowPrivateBaseUrl,
         embedding: env.embeddingProvider ?? '(未配置 → 关键词检索)',

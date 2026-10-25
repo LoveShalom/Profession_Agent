@@ -1,0 +1,11 @@
+#!/bin/sh
+# 提交前闸门：拦截隐私数据与密钥（F 级红线，见 docs/privacy-checklist.md）
+# 安装：npm run hooks:install（设置 git core.hooksPath=.githooks）
+#
+# 为什么用 shell 而不是 husky：本地优先项目不想为了一个 hook 引入 Node 依赖链。
+
+node scripts/check-sensitive.mjs || {
+  echo ""
+  echo "提交被阻止。若确认无误，可临时跳过：git commit --no-verify（不建议）"
+  exit 1
+}

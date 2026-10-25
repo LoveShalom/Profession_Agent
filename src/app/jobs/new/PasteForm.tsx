@@ -3,6 +3,8 @@
 import Link from 'next/link';
 import { useState } from 'react';
 
+import ImageInput from './ImageInput';
+
 // ---------------------------------------------------------------- 类型（与 API 契约对齐）
 type SkillSource = 'explicit' | 'inferred';
 type SkillRequirement = 'must' | 'nice_to_have' | 'unknown';
@@ -121,6 +123,7 @@ function toNumberOrNull(value: string): number | null {
 }
 
 export default function PasteForm() {
+  const [inputMode, setInputMode] = useState<'text' | 'image'>('text');
   const [rawText, setRawText] = useState('');
   const [source, setSource] = useState<'manual' | 'plugin' | 'import'>('manual');
   const [parsing, setParsing] = useState(false);
@@ -136,6 +139,8 @@ export default function PasteForm() {
   const [deadlineKind, setDeadlineKind] = useState<DeadlineKind>('absent');
   const [deadlineText, setDeadlineText] = useState('');
   const [editedFields, setEditedFields] = useState<string[]>([]);
+  /** 截图识别成功后的附件相对路径（入库时写进 jd_structured.source_image） */
+  const [sourceImage, setSourceImage] = useState<string | null>(null);
 
   const [confirmed, setConfirmed] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -144,7 +149,8 @@ export default function PasteForm() {
 
   const markEdited = (id: string) => setEditedFields((prev) => (prev.includes(id) ? prev : [...prev, id]));
 
-  async function handleParse() {
+  async function handleParse(textOverride?: string) {
+    const text = textOverride ?? rawText;
     setParsing(true);
     setParseError(null);
     setParseResult(null);
@@ -156,7 +162,7 @@ export default function PasteForm() {
       const response = await fetch('/api/parse-jd', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ rawText, source }),
+        body: JSON.stringify({ rawText: text, source }),
       });
       const data = (await response.json()) as ParseResponse & { error?: { message: string; hint?: string } };
       if (!response.ok) {
@@ -213,7 +219,7 @@ export default function PasteForm() {
       const response = await fetch('/api/jobs', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ extraction, forceCreate, confirmedFields: editedFields }),
+        body: JSON.stringify({ extraction, forceCreate, confirmedFields: editedFields, sourceImage }),
       });
       const data = (await response.json()) as SaveResponse;
       if (!response.ok && data.status === undefined) {
@@ -236,8 +242,36 @@ export default function PasteForm() {
   return (
     <div>
       <div className="card">
-        <label className="muted small" htmlFor="jd-text">
-          JD 原文（从招聘网站复制粘贴即可）
+        <div className="row" style={{ marginBottom: 10, gap: 8 }}>
+          <button
+            type="button"
+            className={inputMode === 'text' ? undefined : 'secondary'}
+            onClick={() => setInputMode('text')}
+          >
+            粘贴文字
+          </button>
+          <button
+            type="button"
+            className={inputMode === 'image' ? undefined : 'secondary'}
+            onClick={() => setInputMode('image')}
+          >
+            截图识别
+          </button>
+          <span className="muted small">招聘网站禁止复制时，用截图识别（需要支持视觉的模型）</span>
+        </div>
+
+        {inputMode === 'image' ? (
+          <ImageInput
+            onText={(text, meta) => {
+              setRawText(text);
+              setSourceImage(meta?.attachment ?? null);
+              setInputMode('text');
+            }}
+          />
+        ) : null}
+
+        <label className="muted small" htmlFor="jd-text" style={{ display: 'block', marginTop: inputMode === 'image' ? 14 : 0 }}>
+          JD 原文（从招聘网站复制粘贴即可；截图识别的结果也会填到这里）
         </label>
         <textarea
           id="jd-text"
@@ -251,7 +285,7 @@ export default function PasteForm() {
             <option value="import">文件导入</option>
             <option value="plugin">浏览器插件</option>
           </select>
-          <button type="button" onClick={handleParse} disabled={parsing || rawText.trim().length === 0}>
+          <button type="button" onClick={() => void handleParse()} disabled={parsing || rawText.trim().length === 0}>
             {parsing ? '解析中…' : '解析 JD'}
           </button>
           <span className="muted small">{rawText.trim().length} 字符</span>

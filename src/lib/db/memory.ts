@@ -8,7 +8,7 @@
 import { randomUUID } from 'node:crypto';
 
 import type { JobDraft, JobSkillRow } from '../jobs/mapping.ts';
-import type { JobRecord, JobRepository, ListJobsOptions } from './types.ts';
+import type { JobPatch, JobRecord, JobRepository, ListJobsOptions } from './types.ts';
 
 export interface MemoryRepositoryState {
   jobs: JobRecord[];
@@ -25,12 +25,53 @@ export function createMemoryJobRepository(): JobRepository & { state: MemoryRepo
       return state.jobs.find((job) => job.userId === userId && job.fingerprint === fingerprint) ?? null;
     },
 
+    async findById(userId: string, id: string): Promise<JobRecord | null> {
+      return state.jobs.find((job) => job.userId === userId && job.id === id) ?? null;
+    },
+
     async insert(userId: string, draft: JobDraft, skills: readonly JobSkillRow[]): Promise<JobRecord> {
       const now = new Date().toISOString();
-      const record: JobRecord = { ...draft, id: randomUUID(), userId, createdAt: now, updatedAt: now };
+      const record: JobRecord = {
+        ...draft,
+        id: randomUUID(),
+        userId,
+        revision: 1,
+        notes: '',
+        nextAction: null,
+        nextActionAt: null,
+        createdAt: now,
+        updatedAt: now,
+      };
       state.jobs.push(record);
       state.skills.set(record.id, [...skills]);
       return record;
+    },
+
+    async update(userId: string, id: string, patch: JobPatch): Promise<JobRecord | null> {
+      const index = state.jobs.findIndex((job) => job.userId === userId && job.id === id);
+      if (index < 0) return null;
+      const current = state.jobs[index]!;
+      if (patch.expectedRevision !== undefined && patch.expectedRevision !== current.revision) return null;
+
+      const { expectedRevision: _expected, ...fields } = patch;
+      const updated: JobRecord = {
+        ...current,
+        ...fields,
+        city: fields.cities ? (fields.cities[0] ?? null) : current.city,
+        revision: current.revision + 1,
+        updatedAt: new Date().toISOString(),
+      };
+      state.jobs[index] = updated;
+      return updated;
+    },
+
+    async replaceExplicitSkills(userId: string, jobId: string, skills: readonly JobSkillRow[]): Promise<void> {
+      const job = state.jobs.find((item) => item.userId === userId && item.id === jobId);
+      if (!job) return;
+      const existing = state.skills.get(jobId) ?? [];
+      const inferred = existing.filter((row) => row.source !== 'explicit');
+      state.skills.set(jobId, [...skills, ...inferred]);
+      job.skills = [...new Set([...skills.map((row) => row.skill), ...inferred.map((row) => row.skill)])];
     },
 
     async list(userId: string, options: ListJobsOptions = {}): Promise<JobRecord[]> {

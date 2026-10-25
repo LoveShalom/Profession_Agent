@@ -29,6 +29,8 @@ export interface SaveJobParams {
   forceCreate?: boolean;
   /** 用户在确认页已人工核对/修改的字段（豁免"有值必须有证据"的阻塞） */
   confirmedFields?: readonly FieldId[];
+  /** 来源截图（相对工作区路径，写进 jd_structured.source_image） */
+  sourceImage?: string;
 }
 
 export interface SaveJobResult {
@@ -63,7 +65,9 @@ export async function saveJob(repo: JobRepository, params: SaveJobParams): Promi
       params.extraction,
       params.confirmedFields && params.confirmedFields.length > 0 ? { confirmedFields: params.confirmedFields } : {},
     );
-  const draft = toJobDraft(params.extraction, validation);
+  const draft = toJobDraft(params.extraction, validation, {
+    ...(params.sourceImage ? { sourceImage: params.sourceImage } : {}),
+  });
 
   // 1) 校验未通过：不落库，把原因带回去
   if (!validation.ok) {

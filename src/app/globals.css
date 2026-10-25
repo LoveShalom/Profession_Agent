@@ -41,6 +41,32 @@ a:hover {
   text-decoration: underline;
 }
 
+.site-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 20px;
+  background: #fff;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.site-nav .site-brand {
+  font-weight: 600;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.site-nav nav {
+  display: flex;
+  gap: 16px;
+}
+
+.site-nav nav a {
+  font-size: 14px;
+}
+
 .container {
   max-width: 1080px;
   margin: 0 auto;

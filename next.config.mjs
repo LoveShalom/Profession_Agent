@@ -11,7 +11,7 @@
  */
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  serverExternalPackages: ['pg'],
+  serverExternalPackages: ['pg', 'unpdf', 'mammoth'],
   eslint: {
     // lint 由 `npm run lint`（ESLint 9 flat config）单独负责，构建期不重复跑
     ignoreDuringBuilds: true,

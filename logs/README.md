@@ -18,7 +18,7 @@
 | [mission.md](../spec/mission.md) | 为什么做、给谁做、靠什么机制成立、P0–P5 阶段与退出标准 | 判断"要不要做这个功能" |
 | [tech_stack.md](../spec/tech_stack.md) | 技术选型、架构分层、功能编号清单、数据库表结构、算法定义、**§3.9 前沿能力层**、验收指标口径 | 动手写代码/建表前 |
 | [roadmap.md](../spec/roadmap.md) | **功能增量驱动**的交付计划：增量总览、增量明细卡、功能项进度看板、容量预算与关键路径、风险与降级链、**§12 前沿能力增量**、Post-MVP | 每日更新状态 / 每周日复盘 |
-| [features/](../spec/features/) | **功能规范**：[_TEMPLATE.md](../spec/features/_TEMPLATE.md) 模板 + 每个功能一份（四节：规格与分支 / 收集需求 / 任务计划 / 验收评分）；已编写 [F-01 工程地基](../spec/features/F-01-bootstrap.md)（I0）与 [F-02 JD 入库闭环](../spec/features/F-02-jd-ingest.md)（I1） | 开工前必读；收尾时按评分卡打分 |
+| [features/](../spec/features/) | **功能规范**：[_TEMPLATE.md](../spec/features/_TEMPLATE.md) 模板 + 每个功能一份（四节：规格与分支 / 收集需求 / 任务计划 / 验收评分）。已编写：**F-01** 工程地基（I0，已验收）、**F-02** JD 入库闭环（I1，代码完成）、**F-03** 工作区与表格导出（I1.5）、**F-04** 截图 OCR 输入（I1.5）、**F-05** 经历录入与 STAR（I2）、**F-06** 简历导入解析（I2）、**F-07** BYOK 设置页（I2）。编号总表见 [decisions_log §15.2](decisions_log.md) | 开工前必读；收尾时按评分卡打分 |
 | [p0_features.md](../docs/adr/p0_features.md) | **P0 功能清单与规范索引**：P0 范围内的功能项与状态、规范编写队列、M0/M1 出口门 | 查"P0 做到哪一步了" |
 | [docs/adr/](../docs/adr/) | ADR 目录（ADR-0001 ~ ADR-0010 清单见 [tech_stack.md](../spec/tech_stack.md) §4） | 查"这条选型/取舍为什么这么定" |
 | [open_questions.md](open_questions.md) | **只列尚未裁决的问题**（含选项与建议） | 遇到"这里没写清"时 |

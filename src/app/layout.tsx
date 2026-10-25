@@ -11,7 +11,21 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="zh-CN">
-      <body>{children}</body>
+      <body>
+        <header className="site-nav">
+          <a className="site-brand" href="/">
+            Profession Search Agent
+          </a>
+          <nav>
+            <a href="/jobs/new">粘贴 JD</a>
+            <a href="/jobs">岗位列表</a>
+            <a href="/experiences">经历库</a>
+            <a href="/experiences/import">导入简历</a>
+            <a href="/settings/workspace">工作区台账</a>
+          </nav>
+        </header>
+        {children}
+      </body>
     </html>
   );
 }

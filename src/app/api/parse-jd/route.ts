@@ -13,9 +13,9 @@
 
 import { ProviderError } from '@/lib/errors.ts';
 import { extractJd } from '@/lib/llm/extract.ts';
-import { createLLM } from '@/lib/llm/index.ts';
 import { describeBlockers } from '@/lib/pipeline/validate.ts';
 import { getEnv } from '@/lib/server/env.ts';
+import { getModelRouter } from '@/lib/server/models.ts';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -49,8 +49,9 @@ export async function POST(request: Request): Promise<Response> {
   const sourceUrl = typeof payload.sourceUrl === 'string' && payload.sourceUrl.length > 0 ? payload.sourceUrl : undefined;
 
   try {
+    const router = await getModelRouter();
     const env = getEnv();
-    const service = createLLM(env, {});
+    const service = router.text;
     const result = await extractJd(
       { rawText, source, ...(sourceUrl !== undefined ? { sourceUrl } : {}) },
       { service, sampleK: env.sampleK },

@@ -51,8 +51,11 @@ test('buildExtractMessages：system=prompt，user 用 <jd> 隔离原文', () => 
   assert.equal(messages.length, 2);
   assert.equal(messages[0]?.role, 'system');
   assert.equal(messages[1]?.role, 'user');
-  assert.ok(messages[1]?.content.startsWith('<jd>\n'));
-  assert.ok(messages[1]?.content.endsWith('\n</jd>'));
+  // 图片输入（F-04）引入后 content 可能是 parts 数组；文本抽取必须仍是纯字符串
+  const userContent = messages[1]?.content;
+  assert.equal(typeof userContent, 'string');
+  assert.ok((userContent as string).startsWith('<jd>\n'));
+  assert.ok((userContent as string).endsWith('\n</jd>'));
 });
 
 // ---------------------------------------------------------------- 规则抽取（L3/L4）

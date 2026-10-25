@@ -20,6 +20,7 @@ import { spawnSync } from 'node:child_process';
 
 import { formatEnvIssues, validateEnv } from '../src/lib/env.ts';
 import { tryCreateLLM } from '../src/lib/llm/index.ts';
+import { describeModelProfile } from '../src/lib/llm/profiles.ts';
 import { describeTenant, resolveTenant } from '../src/lib/tenant.ts';
 
 const argv = process.argv.slice(2);
@@ -209,6 +210,26 @@ async function main() {
       }
       // 重新取一次 status：探测成功后 capabilities.source 会变成 'probe'，摘要要反映这一点
       record('能力摘要', 'ok', service.status().capabilitiesText);
+
+      // 视觉模型（F-04 截图识别用，独立于文本模型）
+      const visionInfo = describeModelProfile('vision', env);
+      if (!visionInfo.configured) {
+        record(
+          '视觉模型',
+          'warn',
+          '未配置：截图识别不可用（文本功能不受影响）',
+          '需要截图输入时在 .env 加 LLM_VISION_PROVIDER / LLM_VISION_MODEL（可选 LLM_VISION_API_KEY）',
+        );
+      } else if (!visionInfo.supportsVision) {
+        record(
+          '视觉模型',
+          'fail',
+          `${visionInfo.provider} / ${visionInfo.model} 不是视觉模型`,
+          `截图识别需要能读图的模型，例如：${visionInfo.suggestions?.join(' / ') ?? 'qwen-vl-plus'}`,
+        );
+      } else {
+        record('视觉模型', 'ok', `${visionInfo.provider} / ${visionInfo.model}（可读图）`);
+      }
     }
   }
 

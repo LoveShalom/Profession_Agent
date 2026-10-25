@@ -17,20 +17,27 @@
     "verify:model": "node scripts/verify-model-errors.mjs",
     "verify:idempotency": "node scripts/verify-idempotency.mjs",
     "verify:f02": "node scripts/verify-f02.mjs",
+    "workspace:export": "node scripts/workspace.mjs export",
+    "workspace:sync": "node scripts/workspace.mjs sync",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "db:migrate": "node scripts/migrate.mjs"
+    "db:migrate": "node scripts/migrate.mjs",
+    "verify:ocr": "node scripts/verify-ocr.mjs",
+    "hooks:install": "git config core.hooksPath .githooks",
+    "check:sensitive": "node scripts/check-sensitive.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",
     "@types/pg": "^8.23.1",
+    "mammoth": "^1.13.0",
     "next": "^15.0.0",
     "pg": "^8.23.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "unpdf": "^1.9.1",
     "zod": "^3.23.8"
   },
   "devDependencies": {
@@ -45,6 +52,7 @@
   "comments": {
     "runtime": "I0 核心（src/lib/llm、src/lib/env.ts、src/lib/tenant.ts、scripts/*）为零依赖实现，可直接用 Node 24 运行与测试；上面这些依赖用于 Web 层与 F-02 起的 schema 层。",
     "test": "npm test 只跑零依赖核心套件（node:test），因此在无网络环境下也能验收。",
-    "lint": "@typescript-eslint/parser 是 eslint.config.mjs 解析 .ts 必需的（曾漏配导致 24 个 Parsing error）。它虽由 eslint-config-next 传递安装，但显式声明可避免上游更新后消失。"
+    "lint": "@typescript-eslint/parser 是 eslint.config.mjs 解析 .ts 必需的（曾漏配导致 24 个 Parsing error）。它虽由 eslint-config-next 传递安装，但显式声明可避免上游更新后消失。",
+    "resume": "unpdf/mammoth 仅在简历导入（F-06）用到，属可选依赖；未安装时该接口返回 E_DEPENDENCY_MISSING，其余功能不受影响"
   }
 }

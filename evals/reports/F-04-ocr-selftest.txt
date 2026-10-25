@@ -1,0 +1,45 @@
+=== ① 模型路由 ===
+文本：deepseek / deepseek-chat
+视觉：deepseek / deepseek-flash（supportsVision=true）
+
+=== ② 截图识别（90 KB）===
+耗时 3.24s
+✅ 识别成功：1 张 / 242 字
+--- 识别文本 ---
+某科技有限公司
+后端开发工程师（2027届校招）
+
+工作地点：上海 / 杭州
+薪资范围：15k-25k，14薪
+学历要求：本科及以上
+
+【岗位职责】
+1. 参与后端服务的设计与开发，保障系统稳定性；
+2. 负责订单系统的性能优化与容量评估；
+3. 与产品、前端协作完成需求交付。
+
+【技能要求】
+1. 必须精通 Java，熟悉 MySQL 与 Redis；
+2. 具备 Kubernetes 使用经验者优先；
+3. 有深度学习相关项目经验者优先。
+
+【截止时间】2026年11月20日
+--- 结束 ---
+
+=== ③ 文本 → JD 抽取（与手动粘贴同一条管线）===
+level=L0 path=tool_calling ok=true
+公司=某科技有限公司 | 岗位=后端开发工程师 | 城市=上海/杭州
+薪资=15000-25000 · 14薪 | 学历=本科 | 届别=2027
+截止=provided 2026-11-20T23:59:59+08:00 (2026年11月20日)
+技能(6)：Java[explicit/must]、MySQL[explicit/must]、Redis[explicit/must]、Kubernetes[explicit/nice_to_have]、PyTorch[inferred/unknown]、TensorFlow[inferred/unknown]
+待确认=6 阻塞=0
+
+=== ④ 关键项对照 ===
+✅ 公司非空且非占位
+✅ 岗位非空且非占位
+✅ 城市 ≥1
+✅ 抽取层级 L0 或 L1（AI 路径）
+✅ 阻塞 = 0
+✅ 截止三态合法
+
+结果：6/6 通过（验收通过）
