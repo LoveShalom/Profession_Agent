@@ -7,16 +7,18 @@ on:
   workflow_dispatch:
 
 # CI 门（F-01 §4.1 → F-09 §2.2）：
-#   1) 适配层纯净度（AC-13 / 红线③）—— 零依赖，必跑
-#   2) 核心单测（node:test，零依赖）—— 必跑
-#   3) doctor --no-network —— 必跑（配置与安全策略自检）
-#   4) lint / typecheck / 评测 / 敏感扫描 —— 需要 npm install，在 full job 跑
+#   · purity：零依赖静态检查（适配层纯净度）—— 不装依赖也能跑，给最快信号
+#   · quality：装依赖后跑 typecheck / lint / 测试 / 评测 / 敏感扫描
 #
 # 设计原则（F-09 §2.3）：**CI 必须离线可复现**，不依赖 LLM Key / Docker / 真实数据库。
 # 评测走 rules 模式（确定性）；replay fixtures 由作者本地录制。
+#
+# 注意（2026-11-15 修复）：测试会**间接 import `pg`**（credentials/store.ts 是静态 import），
+# 因此任何跑测试的 job 都必须先 `npm ci`；否则会出现
+# "Cannot find package 'pg' ... asynchronous activity after the test ended" 而误红。
 jobs:
-  core:
-    name: 核心检查（零依赖）
+  purity:
+    name: 零依赖静态检查
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -27,14 +29,8 @@ jobs:
       - name: 适配层纯净度（业务代码零厂商 SDK）
         run: node scripts/check-adapter-purity.mjs
 
-      - name: 核心单元测试
-        run: node scripts/run-tests.mjs
-
-      - name: doctor（离线模式）
-        run: node scripts/doctor.mjs --no-network || true
-
-  full:
-    name: 全量检查（lint / typecheck / 评测）
+  quality:
+    name: 全量检查（typecheck / lint / 测试 / 评测）
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -47,14 +43,17 @@ jobs:
       - name: 安装依赖
         run: npm ci
 
-      - name: Lint
-        run: npm run lint
-
       - name: 类型检查
         run: npm run typecheck
 
-      - name: 单元测试（不连数据库）
+      - name: Lint
+        run: npm run lint
+
+      - name: 单元测试（不连数据库；但需要依赖已安装，见文件头说明）
         run: npm test
+
+      - name: doctor（离线模式，仅告警不阻断）
+        run: node scripts/doctor.mjs --no-network || true
 
       - name: 评测集 lock 校验（防止偷改评测集）
         run: node scripts/gen-eval-dataset.mjs --check

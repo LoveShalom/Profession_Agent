@@ -47,6 +47,15 @@ npm run workspace:export
 npm run workspace:sync -- --dry-run       # 期望：更新 0 · 新增 0 · 冲突 0
 ```
 
+**AC 自动验收器（推荐先跑这个）**：
+
+```powershell
+npm run verify:f02rev -- --report      # 期望 23 / 23 自动通过
+```
+
+它会在**临时目录 + 内存仓储**里把 AC-1~AC-10 中能等价验证的部分全部跑一遍（不碰你的真实台账与数据库），
+并列出"仍需页面交互确认"的少数项。报告写入 `evals/reports/F-02-revision-accept.txt`。
+
 **任何一条不绿先别做手工验收。**
 
 ---

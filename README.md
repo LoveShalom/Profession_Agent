@@ -262,6 +262,7 @@ LLM_VISION_BASE_URL=         # 留空 = 该 provider 内置地址
 | `npm run accept` | **F-01 验收**：4 红线 + 13 AC + 评分卡 | 仅 Node |
 | `npm run check:adapter` | 业务代码零厂商 SDK（红线③） | 仅 Node |
 | `npm run db:backfill-category` | 按规则回填存量岗位分类（`--force` 覆盖手改值） | Docker |
+| `npm run verify:f02rev` | **F-02 修订版验收**：AC-1~AC-10 自动覆盖（临时目录+内存仓储，23 项） | 仅 Node |
 | `npm run clean:synthetic` | 清理开发期合成/错误数据（默认 dry-run，`--apply` 软删除） | Docker |
 | `npm run app` | **一键启动**：数据层 + 迁移 + 构建(首次) + 打开浏览器（= 双击 `start.bat`） | Docker |
 | `npm run app -- --lan` | 允许局域网访问（手机/平板；⚠️ 无鉴权，勿在公共 Wi-Fi） | Docker |

@@ -10,7 +10,7 @@
 
 import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
 
-import { Pool } from 'pg';
+import type { Pool as PgPool } from 'pg';
 
 import { ProviderError } from '../errors.ts';
 import { createLLM } from '../llm/index.ts';
@@ -73,7 +73,11 @@ export function maskKey(apiKey: string): string {
 
 // ---------------------------------------------------------------- 仓储
 export async function createCredentialStore(connectionString: string) {
-  const pool = new Pool({ connectionString });
+  // 动态导入 pg：只有真正连库时才需要它。
+  // 之前是顶层静态 import，导致"不装依赖跑测试/静态检查"会因找不到 pg 而误报
+  // （CI 曾出现 "Cannot find package 'pg' ... asynchronous activity after the test ended"）。
+  const { Pool } = await import('pg');
+  const pool: PgPool = new Pool({ connectionString });
 
   return {
     async upsert(userId: string, input: CredentialInput, encrypted: Buffer, status: 'active' | 'invalid'): Promise<void> {

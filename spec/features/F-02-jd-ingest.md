@@ -570,6 +570,9 @@ requirement 权重：must ×2（沿用 §10.1）/ nice_to_have ×1 / unknown ×1
 | 岗位要有**类型标签**（医学影像算法 / 大模型算法 / CV 算法…） | `src/lib/jobs/category.ts` 定义 13 个推荐分类（开放集合，可自定义）；`deriveJobCategory()` 按「标题×3 / 技能×2 / 原文×1」权重规则派生；迁移 `0009_jobs_category.sql` 增加 `jobs.category`；新建岗位自动派生（`mapping.toJobDraft`）；详情页可手改；列表/看板显示分类徽标；列表支持 `?category=` 筛选；`npm run db:backfill-category` 回填存量 |
 | 能**删除**不需要的岗位 | 仓储新增 `softDelete`/`restore`（软删除，`jobs.deleted_at`）；API `DELETE /api/jobs/[id]`、`POST /api/jobs/[id]/restore`；列表行内「删除/恢复」按钮 + 「显示已删除」开关；详情页也可删 |
 
+**验收状态（2026-11-15）**：用户确认 AC-1/2/3 通过；`npm run verify:f02rev` **23/23 自动通过**（覆盖 AC-1~AC-10 的可自动化部分）；
+剩余 5 项"页面交互反馈"待人工抽查（分类下拉、定位下拉、chips 筛选、Excel GBK 保存后同步）。
+
 **设计说明**：
 
 1. **分类是开放集合**：数据库不设 CHECK，用户可以填任意自定义分类；UI 提供 13 个推荐值。

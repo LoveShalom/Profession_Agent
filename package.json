@@ -43,7 +43,8 @@
     "shortcut": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/make-shortcut.ps1",
     "autostart": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-autostart.ps1",
     "db:backfill-category": "node scripts/backfill-category.mjs",
-    "clean:synthetic": "node scripts/clean-synthetic-data.mjs"
+    "clean:synthetic": "node scripts/clean-synthetic-data.mjs",
+    "verify:f02rev": "node scripts/verify-f02-revision.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",

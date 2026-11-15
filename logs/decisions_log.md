@@ -1842,3 +1842,96 @@ npm run workspace:sync -- --dry-run
 
 CSV 不是一个"格式"，而是一族地区性编码：同一份表在中文 Excel 里另存就可能变 GBK。
 **只要程序读的是"用户会用 Excel 编辑的文件"，就不能假设 UTF-8**；要么自动识别编码，要么强制用户另存为 CSV UTF-8（我们两者都做了：自动识别 + 文档建议）。
+
+---
+
+## 47. 第四十七轮：F-02 修订版 AC 自动验收（23/23）（2026-11-15）
+
+### 47.1 用户诉求
+
+> "全部 AC" —— 希望把 AC-1~AC-10 一次性验完。
+
+### 47.2 做法：AC 自动验收器
+
+新增 `scripts/verify-f02-revision.mjs`（`npm run verify:f02rev`）：
+
+| 设计 | 说明 |
+|---|---|
+| 隔离 | 台账类 AC 全在**系统临时目录**跑；业务数据用**内存仓储**；不碰真实 `data/workspace` 与数据库 |
+| 覆盖 | AC-1 数据状态（直查真实库，只读）、AC-2 软删除/恢复、AC-3 列表字段、AC-4 改分类+回填保护、AC-5 分类/定位筛选、AC-6 台账两列+子表+幂等、AC-7 自动分类、AC-8 旧台账兼容/清空=未分类、AC-9 定位覆盖、AC-10 台账定位可编辑+幂等 |
+| 报告 | `--report` 写 `evals/reports/F-02-revision-accept.txt`，含"仍需人工"清单 |
+
+### 47.3 结果：23 / 23 自动通过
+
+```
+✔ AC-1 无合成岗位残留（岗位 6 条）/ 已删除岗位可恢复 / 有效经历 3 条无脏数据 / 8 条垃圾可恢复
+✔ AC-2 软删除 → 隐藏 → 可查已删除 → 恢复
+✔ AC-3 列表项含 category / tier / tierOverridden
+✔ AC-4 改分类写库；backfill 默认保留手改（手改=algo-medical-imaging，派生=backend）
+✔ AC-5 分类筛选、定位筛选各 1 条
+✔ AC-6 主表 26 列含类别/投递定位；按定位排序；三张子表各 1 行；幂等 0 更新
+✔ AC-7 医学影像 JD→医学影像算法/主投；后端 JD→后端开发/碰运气
+✔ AC-8 缺「类别」列不清空（updated=0）；清空单元格→未分类
+✔ AC-9 手动覆盖→主投可见且标记；清空→恢复碰运气
+✔ AC-10 台账改定位→写覆盖；清空→恢复；再导出→0 更新
+结果：23/23 自动通过
+```
+
+### 47.4 仍需人工抽查的 5 项（页面交互）
+
+| AC | 项 |
+|---|---|
+| AC-1/2/3 | 删除键、「显示已删除（N）」、类别/定位列是否可见（用户已确认 ✅） |
+| AC-4 | 详情页「岗位分类」下拉保存后的即时反馈 |
+| AC-5 | 分类/定位 chips 点击筛选的页面表现 |
+| AC-9 | 详情页「投递定位」下拉的交互反馈 |
+| AC-6/10 | 在 Excel 改单元格保存（GBK）→ 点同步回库的完整链路（编码已单测+真实文件验证） |
+
+### 47.5 观察到的数据变化
+
+数据库岗位从 5 条变为 **6 条**（用户在验收过程中新增了 1 条），属正常使用；无合成残留。
+
+---
+
+## 48. 第四十八轮：CI 误红（零依赖 job 跑测试却缺 pg）（2026-11-15）
+
+### 48.1 现象
+
+GitHub Actions 的「核心单元测试」任务红，日志：
+
+```
+Error: A resource generated asynchronous activity after the test ended.
+Cannot find package 'pg' imported from .../src/lib/credentials/store.ts
+ℹ tests 28 ℹ pass 28 ℹ fail 0
+Error: Process completed with exit code 1.
+```
+
+注意：测试本身 28/28 全过，红的是**测试结束后的异步活动**（动态 import 失败）。
+
+### 48.2 根因
+
+| 项 | 说明 |
+|---|---|
+| CI 结构 | 曾有 `core`（零依赖，不装 npm 包）与 `full` 两个 job；`core` 里跑了 `npm test` |
+| 依赖链 | `credentials/store.ts` 是 **静态 `import { Pool } from "pg"`**；测试经 `server/models.ts` 间接加载它 |
+| 结果 | `core` job 没装依赖 → `pg` 不存在 → 模块加载在异步链里抛错 → node:test 判为 uncaught → 退出码 1 |
+
+### 48.3 修法
+
+| 改动 | 说明 |
+|---|---|
+| 拆分 job | `purity`：只跑零依赖静态检查（适配层纯净度）；`quality`：`npm ci` → typecheck/lint/test/评测/敏感扫描 |
+| 原则 | **任何跑测试的 job 必须先 npm ci**；零依赖只留给纯静态脚本 |
+| 文档 | getting-started 故障表补该报错与原因 |
+
+### 48.4 验证
+
+```
+本地等价：npm ci 后 npm test 全绿（438/438）
+CI 文件：.github/workflows/ci.yml（purity + quality 两个 job）
+```
+
+### 48.5 教训
+
+"零依赖 job"只适合**真的零依赖**的脚本（静态检查）。测试会传递加载业务模块，业务模块依赖 `pg` 等 npm 包——
+把测试放进零依赖 job 等于假设"业务代码不需要依赖"，这个假设一定会在某次提交里被打破。
