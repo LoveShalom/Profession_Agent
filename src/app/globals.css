@@ -320,3 +320,188 @@ pre {
   overflow: auto;
   font-size: 12px;
 }
+
+/* ============ 投递看板（F-08）============ */
+.container.wide {
+  max-width: 1400px;
+}
+
+.board {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  overflow-x: auto;
+  padding-bottom: 8px;
+}
+
+.board-column {
+  flex: 0 0 168px;
+  background: #f6f7f9;
+  border: 1px solid #e3e6ea;
+  border-radius: 10px;
+  padding: 8px;
+  min-height: 140px;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.board-column.over {
+  background: #e8f1ff;
+  border-color: #7aa7e8;
+}
+
+.board-column-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-weight: 600;
+  font-size: 13px;
+  padding: 0 2px 6px;
+}
+
+.board-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.board-card {
+  background: #fff;
+  border: 1px solid #dfe3e8;
+  border-radius: 8px;
+  padding: 8px 10px;
+  cursor: grab;
+  font-size: 13px;
+  outline: none;
+}
+
+.board-card:focus-visible {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.25);
+}
+
+.board-card.dragging {
+  opacity: 0.5;
+}
+
+.board-card-title {
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.board-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin-top: 6px;
+}
+
+.board-empty {
+  border: 1px dashed #c9ced6;
+  border-radius: 8px;
+  color: #98a2b3;
+  font-size: 12px;
+  text-align: center;
+  padding: 14px 4px;
+}
+
+.board-terminal {
+  margin-top: 14px;
+  border: 1px solid #e3e6ea;
+  border-radius: 10px;
+  padding: 8px 12px;
+  background: #fafbfc;
+}
+
+.board-terminal > summary {
+  cursor: pointer;
+  font-size: 13px;
+  color: #475467;
+}
+
+.board-terminal-cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.board-terminal-cards .board-card {
+  width: 180px;
+}
+
+/* 模态（备注弹窗） */
+.modal-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(16, 24, 40, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  z-index: 50;
+}
+
+.modal {
+  width: min(520px, 100%);
+}
+
+.badge.danger {
+  background: #fef3f2;
+  color: #b42318;
+  border-color: #fda29b;
+}
+
+.badge.warn {
+  background: #fffaeb;
+  color: #b54708;
+  border-color: #fec84b;
+}
+
+.badge.muted {
+  background: #f2f4f7;
+  color: #667085;
+  border-color: #d0d5dd;
+}
+
+/* ============ 状态时间线（F-08）============ */
+.timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 16px;
+  border-left: 2px solid #e3e6ea;
+}
+
+.timeline > li {
+  position: relative;
+  padding: 0 0 14px 14px;
+  font-size: 13px;
+}
+
+.timeline > li::before {
+  content: "";
+  position: absolute;
+  left: -21px;
+  top: 4px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #2563eb;
+}
+
+.timeline-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-weight: 600;
+}
+
+/* 页脚（构建时间排障用） */
+.site-footer {
+  max-width: 1100px;
+  margin: 24px auto 16px;
+  padding: 0 16px;
+  text-align: center;
+  font-size: 12px;
+}

@@ -1,0 +1,33 @@
+# 构建上下文排除（隐私 + 体积）
+# 这些目录/文件绝不能被 docker build 打进镜像：数据、密钥、构建产物、依赖、历史
+
+.git
+.gitignore
+.githooks
+
+# 隐私数据：台账、原始 JD、简历、截图、备份
+data/
+.data/
+
+# 环境变量（含 Key）
+.env
+.env.*
+!.env.example
+
+# 依赖与构建产物（镜像内会重新安装/构建）
+node_modules/
+.next/
+out/
+dist/
+
+# 评测报告与本地日志（可能含真实 JD）
+evals/reports/
+logs/*.local.md
+*.log
+
+# 测试与杂项
+coverage/
+tmp/
+*.tsbuildinfo
+.DS_Store
+Thumbs.db

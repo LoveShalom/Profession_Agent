@@ -26,3 +26,6 @@ evals/reports/*.local.md
 .idea/
 .DS_Store
 Thumbs.db
+
+# 开机自启脚本里自动生成的隐藏启动器
+scripts/start-hidden.vbs

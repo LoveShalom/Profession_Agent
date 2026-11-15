@@ -32,6 +32,10 @@ export interface JobRecord extends Omit<JobDraft, 'status' | 'priority'> {
   notes: string;
   nextAction: string | null;
   nextActionAt: string | null;
+  /** 投递定位覆盖值（null = 跟随分类派生） */
+  campaignTier: 'primary' | 'secondary' | 'casual' | null;
+  /** 软删除时间（null = 未删除） */
+  deletedAt: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -60,15 +64,45 @@ export interface JobPatch {
   skills?: string[];
   /** 覆盖待确认字段（用户校准后应删除对应项） */
   review_flags?: FieldId[];
+  /** 覆盖 `jobs.raw_text`（合并重复 JD 时追加原文） */
+  raw_text?: string;
+  /** 岗位分类 code（用户可改） */
+  category?: string | null;
+  /** 覆盖投递定位：null=跟随分类派生；primary/secondary/casual=手动指定 */
+  campaignTier?: 'primary' | 'secondary' | 'casual' | null;
   /** 乐观并发：revision 不匹配时返回 null（冲突） */
   expectedRevision?: number;
 }
+
+/** 状态流转事件（只追加；回退/重新激活带标记） */
+export interface JobEventRecord {
+  id: string;
+  userId: string;
+  jobId: string;
+  fromStatus: string;
+  toStatus: string;
+  note: string | null;
+  isRollback: boolean;
+  isReactivation: boolean;
+  occurredAt: string;
+}
+
+/** 原子写入状态 + 事件的结果 */
+export type StatusWriteResult =
+  | { ok: true; job: JobRecord; event: JobEventRecord }
+  | { ok: false; code: 'NOT_FOUND' | 'CONFLICT'; currentStatus?: string };
 
 export interface ListJobsOptions {
   limit?: number;
   status?: string;
   /** 只看有阻塞/待确认的岗位 */
   onlyNeedsReview?: boolean;
+  /** 按分类筛选（category code） */
+  category?: string;
+  /** 按有效投递定位筛选（含覆盖值） */
+  tier?: 'primary' | 'secondary' | 'casual';
+  /** 包含已软删除的岗位（默认不含） */
+  includeDeleted?: boolean;
 }
 
 export interface JobRepository {
@@ -85,4 +119,21 @@ export interface JobRepository {
   count(userId: string): Promise<number>;
   /** 取某岗位的技能属性（测试与详情页用） */
   listSkills(jobId: string): Promise<JobSkillRow[]>;
+  /**
+   * 原子地更新状态并写事件（同一事务）。
+   * `expectedFrom` 用于乐观并发：当前状态不符时返回 CONFLICT。
+   * 流转合法性由 service 层判定，这里只保证"写不成功就不写"。
+   */
+  updateStatus(
+    userId: string,
+    jobId: string,
+    to: string,
+    meta: { note: string | null; isRollback: boolean; isReactivation: boolean; expectedFrom?: string },
+  ): Promise<StatusWriteResult>;
+  /** 某岗位的流转时间线（倒序） */
+  listEvents(userId: string, jobId: string, limit?: number): Promise<JobEventRecord[]>;
+  /** 软删除（可在列表"显示已删除"里恢复） */
+  softDelete(userId: string, jobId: string): Promise<boolean>;
+  /** 恢复软删除 */
+  restore(userId: string, jobId: string): Promise<boolean>;
 }

@@ -92,7 +92,14 @@ export interface SalaryParse {
   evidence: string;
 }
 
-/** 解析薪资：15k-25k / 15-25K / 20k以上 / 20-35万/年 / 25万 / 面议 */
+/**
+ * 解析薪资：15k-25k / 15-25K / 20-30K / 20k以上 / 20-35万/年 / 月薪 2-3 万 / 面议
+ *
+ * 单位口径：产品字段是**元/月**。
+ *   · K/千 形式 → ×1000（如 20-30K → 20000-30000）
+ *   · 万形式：**默认按月薪**（×10000）；只有出现"年薪/年包/万/年"等年化语境才 ÷12。
+ *     这条曾经写错过：`薪资 2-3 万` 被当年薪算出 1667-2500（差 10 倍）。
+ */
 export function parseSalary(text: string): SalaryParse | null {
   if (/面议|薪资面谈|待遇面议/.test(text)) {
     return { salary_negotiable: true, evidence: '面议' };
@@ -100,8 +107,11 @@ export function parseSalary(text: string): SalaryParse | null {
   const monthsMatch = text.match(/(\d{2})\s*薪/);
   const months = monthsMatch ? Number(monthsMatch[1]) : undefined;
 
-  // k 形式：15k-25k / 15-25K / 15K～25K / 20k以上
-  const kRange = text.match(/(\d{1,3})\s*[kK]\s*[-~至到]\s*(\d{1,3})\s*[kK]/);
+  // K/千 形式：两侧都带单位、只有右侧带、只有左侧带都要认（"20-30K" 是最常见写法）
+  const kRange =
+    text.match(/(\d{1,3})\s*[kK千]\s*[-~至到]\s*(\d{1,3})\s*[kK千]/) ??
+    text.match(/(\d{1,3})\s*[-~至到]\s*(\d{1,3})\s*[kK千]/) ??
+    text.match(/(\d{1,3})\s*[kK千]\s*[-~至到]\s*(\d{1,3})(?!\s*[kK千万])/);
   if (kRange) {
     return {
       salary_min: Number(kRange[1]) * 1000,
@@ -110,24 +120,36 @@ export function parseSalary(text: string): SalaryParse | null {
       evidence: kRange[0],
     };
   }
-  const kSingle = text.match(/(\d{1,3})\s*[kK]\s*(以上|起|\+)/);
+  const kSingle = text.match(/(\d{1,3})\s*[kK千]\s*(以上|起|\+)/);
   if (kSingle) {
     return { salary_min: Number(kSingle[1]) * 1000, salary_months: months, evidence: kSingle[0] };
   }
-  // 万/年 形式：20-35万/年、年薪 30 万
-  const wanRange = text.match(/(\d{1,3})\s*[-~至到]\s*(\d{1,3})\s*万/);
+
+  // 年化语境判定：出现这些词才把"万"换算成月薪（÷12）
+  const annualContext = /(年薪|年包|年收入|总包|万\s*\/\s*年|每年|年薪资)/.test(text);
+
+  // 万形式：20-35万、月薪 2-3 万、年薪 30 万
+  const wanRange = text.match(/(\d{1,3}(?:\.\d+)?)\s*[-~至到]\s*(\d{1,3}(?:\.\d+)?)\s*万/);
   if (wanRange) {
+    const min = Number(wanRange[1]) * 10000;
+    const max = Number(wanRange[2]) * 10000;
     return {
-      salary_min: round((Number(wanRange[1]) * 10000) / 12),
-      salary_max: round((Number(wanRange[2]) * 10000) / 12),
+      salary_min: annualContext ? round(min / 12) : round(min),
+      salary_max: annualContext ? round(max / 12) : round(max),
       salary_months: months,
       evidence: wanRange[0],
     };
   }
-  const wanSingle = text.match(/(?:年薪|年包)?\s*(\d{1,3})\s*万/);
+  const wanSingle = text.match(/(\d{1,3}(?:\.\d+)?)\s*万/);
   if (wanSingle) {
-    return { salary_min: round((Number(wanSingle[1]) * 10000) / 12), salary_months: months, evidence: wanSingle[0] };
+    const value = Number(wanSingle[1]) * 10000;
+    return {
+      salary_min: annualContext ? round(value / 12) : round(value),
+      salary_months: months,
+      evidence: wanSingle[0],
+    };
   }
+
   // 纯数字月薪：15000-25000 / 15000元
   const plainRange = text.match(/(\d{4,6})\s*[-~至到]\s*(\d{4,6})/);
   if (plainRange) {

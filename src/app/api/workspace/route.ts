@@ -59,6 +59,9 @@ function collectStatus() {
     attachments,
     files: {
       mainTable: paths.mainTable,
+      primaryTable: paths.tierTables.primary,
+      secondaryTable: paths.tierTables.secondary,
+      casualTable: paths.tierTables.casual,
       skillsTable: paths.skillsTable,
       readme: paths.readme,
       rawDir: paths.rawDir,

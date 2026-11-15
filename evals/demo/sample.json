@@ -1,0 +1,93 @@
+{
+  "note": "全部为虚构样例，不含任何真实公司/个人信息",
+  "jobs": [
+    {
+      "company": "示例科技（北京）有限公司",
+      "title": "后端开发工程师",
+      "cities": ["北京"],
+      "status": "to_apply",
+      "priority": "高",
+      "deadline": "2026-12-15T23:59:59+08:00",
+      "deadlineKind": "provided",
+      "skills": ["Java", "Spring Boot", "MySQL", "Redis"]
+    },
+    {
+      "company": "示例数据（上海）有限公司",
+      "title": "数据平台工程师",
+      "cities": ["上海"],
+      "status": "applied",
+      "priority": "高",
+      "deadline": "2026-12-20T23:59:59+08:00",
+      "deadlineKind": "provided",
+      "skills": ["SQL", "Spark", "Hive"]
+    },
+    {
+      "company": "示例智能（深圳）有限公司",
+      "title": "算法工程师",
+      "cities": ["深圳"],
+      "status": "interviewing",
+      "priority": "中",
+      "deadline": null,
+      "deadlineKind": "absent",
+      "skills": ["Python", "PyTorch", "机器学习"]
+    },
+    {
+      "company": "示例网络（杭州）有限公司",
+      "title": "前端开发工程师",
+      "cities": ["杭州"],
+      "status": "offer_pending",
+      "priority": "中",
+      "deadline": null,
+      "deadlineKind": "text_only",
+      "skills": ["TypeScript", "React"]
+    },
+    {
+      "company": "示例安全（广州）有限公司",
+      "title": "安全研发工程师",
+      "cities": ["广州"],
+      "status": "withdrawn",
+      "priority": "低",
+      "deadline": null,
+      "deadlineKind": "absent",
+      "skills": ["Python", "Linux"]
+    },
+    {
+      "company": "示例医疗（成都）有限公司",
+      "title": "数据工程师",
+      "cities": ["成都"],
+      "status": "rejected_by_company",
+      "priority": "低",
+      "deadline": null,
+      "deadlineKind": "absent",
+      "skills": ["SQL", "Airflow"]
+    }
+  ],
+  "experiences": [
+    {
+      "type": "internship",
+      "org": "示例科技有限公司",
+      "role": "后端开发实习生",
+      "period": "2025.06 ~ 2025.09",
+      "skills": ["Java", "MySQL", "Redis"],
+      "star": {
+        "situation": "订单查询接口在高峰期平均响应 800ms，用户投诉较多。",
+        "task": "负责把查询接口 P95 延迟降到 300ms 以内。",
+        "action": "为慢 SQL 补充复合索引；引入 Redis 缓存热点订单；对列表接口分页改造。",
+        "result": "P95 从 800ms 降至 210ms，慢查询告警下降 90%。"
+      }
+    },
+    {
+      "type": "project",
+      "org": "示例大学计算机学院",
+      "role": "课程项目负责人",
+      "period": "2025.03 ~ 2025.06",
+      "skills": ["Python", "React", "PostgreSQL"],
+      "star": {
+        "situation": "课程项目需要做一个招聘信息检索 Demo，数据分散在多个网站。",
+        "task": "负责数据采集与检索模块，支持按技能与城市筛选。",
+        "action": "用 Python 写采集脚本；设计 PostgreSQL 表结构；实现技能/城市组合筛选接口。",
+        "result": "完成 1,200 条岗位入库检索，筛选响应 < 200ms，项目获课程 A 评级。"
+      }
+    }
+  ]
+}

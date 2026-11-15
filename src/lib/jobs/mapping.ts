@@ -13,6 +13,7 @@
  *   · `deadline_kind` 与 `deadline` 成对写入，DB 侧有 CHECK 约束兜底。
  */
 
+import { deriveJobCategory } from './category.ts';
 import { buildFingerprint } from '../pipeline/dedupe.ts';
 import type { ValidateResult } from '../pipeline/validate.ts';
 import type { FieldId } from '../schemas/field-dict.ts';
@@ -45,6 +46,8 @@ export interface JobDraft {
   is_referral: boolean;
   referral_code: string | null;
   raw_text: string;
+  /** 岗位分类 code（F-02 修订：医学影像算法 / 大模型算法 / CV 算法…） */
+  category: string | null;
   jd_structured: Record<string, unknown>;
   review_flags: FieldId[];
   fingerprint: string;
@@ -109,6 +112,12 @@ export function toJobDraft(
     is_referral: fields.is_referral,
     referral_code: fields.referral_code,
     raw_text: fields.raw_text,
+    // 分类是规则派生的推荐值，用户可在详情页改（存 code）
+    category: deriveJobCategory({
+      title: fields.title,
+      skills: collectSkillNames(fields.skills),
+      rawText: fields.raw_text,
+    }).code,
     jd_structured: {
       schemaVersion: FIELD_DICT_VERSION,
       evidence: extraction.evidence,

@@ -1,0 +1,7 @@
+{
+  "sha256": "0ed52fd2357ccedc83bc3dc31ae97d2e3b6cd7e0c9a6959f9de962d797e55d5e",
+  "items": 40,
+  "version": 1,
+  "generatedAt": "2026-11-15T07:30:11.648Z",
+  "note": "评测集是质量契约：改条目必须重新生成 lock，并在 decisions_log 记录原因"
+}

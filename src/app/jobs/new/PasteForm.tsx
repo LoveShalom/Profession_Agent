@@ -146,6 +146,8 @@ export default function PasteForm() {
   const [saving, setSaving] = useState(false);
   const [saveResult, setSaveResult] = useState<SaveResponse | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  /** 供「合并到已有」复用的最后一次抽取结果 */
+  const [lastExtraction, setLastExtraction] = useState<unknown>(null);
 
   const markEdited = (id: string) => setEditedFields((prev) => (prev.includes(id) ? prev : [...prev, id]));
 
@@ -216,6 +218,7 @@ export default function PasteForm() {
         },
       };
 
+      setLastExtraction(extraction);
       const response = await fetch('/api/jobs', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
@@ -563,9 +566,43 @@ export default function PasteForm() {
                 ⚠️ 该岗位已存在：
                 <b>{saveResult.duplicateOf?.company}</b> / {saveResult.duplicateOf?.title}
                 <div className="row" style={{ marginTop: 8 }}>
-                  <a className="small" href={`/jobs?highlight=${saveResult.duplicateOf?.id ?? ''}`}>
+                  <a className="small" href={`/jobs/${saveResult.duplicateOf?.id ?? ''}`}>
                     查看已有
                   </a>
+                  <button
+                    type="button"
+                    className="secondary"
+                    disabled={saving}
+                    onClick={() => {
+                      void (async () => {
+                        if (!lastExtraction) {
+                          setSaveError('缺少抽取结果，请重新粘贴 JD 后再合并');
+                          return;
+                        }
+                        setSaving(true);
+                        setSaveError(null);
+                        try {
+                          const response = await fetch(`/api/jobs/${saveResult.duplicateOf?.id}/merge`, {
+                            method: 'POST',
+                            headers: { 'content-type': 'application/json' },
+                            body: JSON.stringify({ extraction: lastExtraction }),
+                          });
+                          const data = (await response.json()) as { ok?: boolean; messages?: string[]; message?: string };
+                          if (!data.ok) {
+                            setSaveError(data.message ?? '合并失败');
+                            return;
+                          }
+                          window.location.href = `/jobs/${saveResult.duplicateOf?.id ?? ''}`;
+                        } catch (caught) {
+                          setSaveError(caught instanceof Error ? caught.message : '网络错误');
+                        } finally {
+                          setSaving(false);
+                        }
+                      })();
+                    }}
+                  >
+                    合并到已有（补齐空缺字段）
+                  </button>
                   <button type="button" className="secondary" onClick={() => void handleSave(true)} disabled={saving}>
                     仍然新建一条
                   </button>

@@ -13,7 +13,14 @@ import type { PoolClient } from 'pg';
 
 import type { JobDraft, JobSkillRow } from '../jobs/mapping.ts';
 
-import type { JobRecord, JobPatch, JobRepository, ListJobsOptions } from './types.ts';
+import type {
+  JobEventRecord,
+  JobRecord,
+  JobPatch,
+  JobRepository,
+  ListJobsOptions,
+  StatusWriteResult,
+} from './types.ts';
 
 const JOB_COLUMNS = [
   'user_id',
@@ -40,6 +47,7 @@ const JOB_COLUMNS = [
   'is_referral',
   'referral_code',
   'raw_text',
+  'category',
   'jd_structured',
   'review_flags',
   'fingerprint',
@@ -73,6 +81,7 @@ function draftValues(userId: string, draft: JobDraft): unknown[] {
     draft.is_referral,
     draft.referral_code,
     draft.raw_text,
+    draft.category,
     JSON.stringify(draft.jd_structured),
     draft.review_flags,
     draft.fingerprint,
@@ -83,6 +92,20 @@ function draftValues(userId: string, draft: JobDraft): unknown[] {
 
 function asStringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.map(String) : [];
+}
+
+function toEvent(row: Record<string, unknown>): JobEventRecord {
+  return {
+    id: String(row['id']),
+    userId: String(row['user_id']),
+    jobId: String(row['job_id']),
+    fromStatus: String(row['from_status']),
+    toStatus: String(row['to_status']),
+    note: row['note'] === null ? null : String(row['note']),
+    isRollback: Boolean(row['is_rollback']),
+    isReactivation: Boolean(row['is_reactivation']),
+    occurredAt: new Date(String(row['occurred_at'])).toISOString(),
+  };
 }
 
 function toRecord(row: Record<string, unknown>): JobRecord {
@@ -112,6 +135,11 @@ function toRecord(row: Record<string, unknown>): JobRecord {
     is_referral: Boolean(row['is_referral']),
     referral_code: row['referral_code'] === null ? null : String(row['referral_code']),
     raw_text: String(row['raw_text']),
+    category: row['category'] === null || row['category'] === undefined ? null : String(row['category']),
+    campaignTier:
+      row['campaign_tier'] === null || row['campaign_tier'] === undefined
+        ? null
+        : (String(row['campaign_tier']) as JobRecord['campaignTier']),
     jd_structured: (row['jd_structured'] ?? {}) as Record<string, unknown>,
     review_flags: asStringArray(row['review_flags']) as JobRecord['review_flags'],
     fingerprint: String(row['fingerprint']),
@@ -119,6 +147,10 @@ function toRecord(row: Record<string, unknown>): JobRecord {
     priority: String(row['priority']) as JobRecord['priority'],
     revision: row['revision'] === null || row['revision'] === undefined ? 1 : Number(row['revision']),
     notes: row['notes'] === null || row['notes'] === undefined ? '' : String(row['notes']),
+    deletedAt:
+      row['deleted_at'] === null || row['deleted_at'] === undefined
+        ? null
+        : new Date(String(row['deleted_at'])).toISOString(),
     nextAction: row['next_action'] === null || row['next_action'] === undefined ? null : String(row['next_action']),
     nextActionAt:
       row['next_action_at'] === null || row['next_action_at'] === undefined
@@ -172,6 +204,9 @@ export async function createPostgresJobRepository(connectionString: string): Pro
         nextAction: 'next_action',
         nextActionAt: 'next_action_at',
         notes: 'notes',
+        raw_text: 'raw_text',
+        category: 'category',
+        campaignTier: 'campaign_tier',
         skills: 'skills',
         review_flags: 'review_flags',
       };
@@ -283,7 +318,7 @@ export async function createPostgresJobRepository(connectionString: string): Pro
 
     async list(userId: string, options: ListJobsOptions = {}): Promise<JobRecord[]> {
       const limit = Math.min(Math.max(options.limit ?? 100, 1), 500);
-      const conditions = ['user_id = $1', 'deleted_at is null'];
+      const conditions = options.includeDeleted ? ['user_id = $1'] : ['user_id = $1', 'deleted_at is null'];
       const values: unknown[] = [userId];
       if (options.status) {
         values.push(options.status);
@@ -291,6 +326,21 @@ export async function createPostgresJobRepository(connectionString: string): Pro
       }
       if (options.onlyNeedsReview) {
         conditions.push('cardinality(review_flags) > 0');
+      }
+      if (options.category) {
+        values.push(options.category);
+        conditions.push(`category = $${values.length}`);
+      }
+      if (options.tier) {
+        // 有效定位 = coalesce(手动覆盖, 分类派生)：把分类→定位的映射展开成 CASE
+        const tiers = [
+          ['algo-medical-imaging', 'primary'],
+          ['algo-cv', 'secondary'],
+          ['ai-app', 'secondary'],
+        ] as const;
+        const caseSql = `case category ${tiers.map(([code, tier]) => `when '${code}' then '${tier}'`).join(' ')} else 'casual' end`;
+        values.push(options.tier);
+        conditions.push(`coalesce(campaign_tier, ${caseSql}) = $${values.length}`);
       }
       values.push(limit);
       const result = await pool.query(
@@ -306,6 +356,78 @@ export async function createPostgresJobRepository(connectionString: string): Pro
         [userId],
       );
       return Number((result.rows[0] as { total?: number } | undefined)?.total ?? 0);
+    },
+
+    /** 状态 + 事件同一事务；行级锁避免并发覆盖 */
+    async updateStatus(
+      userId: string,
+      jobId: string,
+      to: string,
+      meta: { note: string | null; isRollback: boolean; isReactivation: boolean; expectedFrom?: string },
+    ): Promise<StatusWriteResult> {
+      const client: PoolClient = await pool.connect();
+      try {
+        await client.query('begin');
+        const locked = await client.query(
+          'select * from jobs where user_id = $1 and id = $2 and deleted_at is null for update',
+          [userId, jobId],
+        );
+        const currentRow = locked.rows[0] as Record<string, unknown> | undefined;
+        if (!currentRow) {
+          await client.query('rollback');
+          return { ok: false, code: 'NOT_FOUND' };
+        }
+        const current = toRecord(currentRow);
+        if (meta.expectedFrom !== undefined && current.status !== meta.expectedFrom) {
+          await client.query('rollback');
+          return { ok: false, code: 'CONFLICT', currentStatus: current.status };
+        }
+
+        const updated = await client.query(
+          'update jobs set status = $1, revision = revision + 1, updated_at = now() where user_id = $2 and id = $3 returning *',
+          [to, userId, jobId],
+        );
+        const inserted = await client.query(
+          `insert into job_events (user_id, job_id, from_status, to_status, note, is_rollback, is_reactivation)
+           values ($1, $2, $3, $4, $5, $6, $7) returning *`,
+          [userId, jobId, current.status, to, meta.note, meta.isRollback, meta.isReactivation],
+        );
+        await client.query('commit');
+        return {
+          ok: true,
+          job: toRecord(updated.rows[0] as Record<string, unknown>),
+          event: toEvent(inserted.rows[0] as Record<string, unknown>),
+        };
+      } catch (error) {
+        await client.query('rollback').catch(() => undefined);
+        throw error;
+      } finally {
+        client.release();
+      }
+    },
+
+    async listEvents(userId: string, jobId: string, limit = 50): Promise<JobEventRecord[]> {
+      const result = await pool.query(
+        `select * from job_events where user_id = $1 and job_id = $2 order by occurred_at desc limit $3`,
+        [userId, jobId, Math.min(Math.max(limit, 1), 200)],
+      );
+      return result.rows.map((row) => toEvent(row as Record<string, unknown>));
+    },
+
+    async softDelete(userId: string, jobId: string): Promise<boolean> {
+      const result = await pool.query(
+        'update jobs set deleted_at = now(), updated_at = now() where user_id = $1 and id = $2 and deleted_at is null',
+        [userId, jobId],
+      );
+      return (result.rowCount ?? 0) > 0;
+    },
+
+    async restore(userId: string, jobId: string): Promise<boolean> {
+      const result = await pool.query(
+        'update jobs set deleted_at = null, updated_at = now() where user_id = $1 and id = $2 and deleted_at is not null',
+        [userId, jobId],
+      );
+      return (result.rowCount ?? 0) > 0;
     },
 
     async listSkills(jobId: string): Promise<JobSkillRow[]> {

@@ -35,16 +35,19 @@
    技能自动拆分归一、量化指标自动抽取；支持查看详情、编辑、软删恢复、按类型筛选；
 9. **简历导入**（`/experiences/import`）：上传 PDF/DOCX → **AI 切分多段经历** → 候选可编辑 → 勾选批量导入；
    扫描件会明确提示改用截图识别，绝不输出乱码；
-10. **工作区台账**（`/settings/workspace`）：一键导出 CSV 台账（岗位 + 技能 + **经历库** + 原始 JD），
+10. **工作区台账**（`/settings/workspace`）：一键导出 CSV 台账（岗位 + 技能 + **经历库** + 原始 JD + **按主投/副投/碰运气拆分的三张只读子表**），
     在 Excel 改完可同步回库（列级权限 / 修订号冲突 / 用户优先 / 删行保护 / 同步前备份）；
 11. **截图 OCR**：招聘网站禁止复制时，`Ctrl+V` 粘贴截图 → 视觉模型识别成文本 → 走同一条抽取管线；
 12. **模型设置**（`/settings/llm`）：在网页里配文本/视觉两套凭证（AES-256-GCM 加密、保存前真实探活、优先于 `.env`）。
+13. **岗位分类 + 投递定位**：自动派生分类（医学影像 / AI 应用 / CV / 大模型 / 后端… 15 类，可自定义），
+    并按策略标注**主投 / 副投 / 碰运气**（详情页可手动覆盖）；列表可按分类/定位筛选；台账 CSV 两列都可编辑；
+14. **删除岗位**：列表/详情页软删除，`显示已删除` 里可恢复；
 
 ---
 
 ## 2. 功能计划
 
-按**功能增量**排期（不按周划分），每个增量都能独立演示与验收。合计 ≈ **212 小时**。
+按**功能增量**排期（不按周划分），每个增量都能独立演示与验收。合计 ≈ **226 小时**。
 I1.5 与 I2 的详细规范已写好：见 [F-03](spec/features/F-03-workspace-export.md) / [F-04](spec/features/F-04-screenshot-ocr.md) /
 [F-05](spec/features/F-05-experience-entry.md) / [F-06](spec/features/F-06-resume-import.md) / [F-07](spec/features/F-07-byok-settings.md)。
 
@@ -52,10 +55,10 @@ I1.5 与 I2 的详细规范已写好：见 [F-03](spec/features/F-03-workspace-e
 |---|---|---|---|
 | **I0** | 工程地基与 Provider 适配层：环境契约、BYOK 适配层（7 预设 + 自定义）、降级链 L0–L4、安全护栏、一键启动、doctor | 12h | ✅ **验收通过（90/100）** |
 | **I1** | JD 入库闭环：字段字典 v1、清洗分段、抽取编排、K=3 自一致性、校验、截止三态、技能三属性、指纹去重、入库 API 与界面 | 34h | ✅ **验收通过（2026-10-25）** |
-| **I1.5** | **① 工作区与表格导出（F-03）**：指定文件夹 + CSV 台账 + **双向同步**（列级权限 / 修订号冲突 / 用户优先）+ 原始 JD 快照<br>**② 截图 OCR 输入（F-04）**：粘贴/拖拽/长图切片 → 视觉模型或本地 OCR → 文本 → **复用 JD 抽取管线**（应对禁止复制的网站） | 18h | 🟡 **代码完成**（F-03 台账双向同步 + 设置页 · F-04 截图 OCR + 附件落盘；待正式验收） |
+| **I1.5** | **① 工作区与表格导出（F-03）**：指定文件夹 + CSV 台账 + **双向同步**（列级权限 / 修订号冲突 / 用户优先）+ 原始 JD 快照<br>**② 截图 OCR 输入（F-04）**：粘贴/拖拽/长图切片 → 视觉模型或本地 OCR → 文本 → **复用 JD 抽取管线**（应对禁止复制的网站） | 18h | ✅ **验收通过（2026-11-11）** |
 | **I2** | 经历库：**F-05** 经历录入与 STAR（18h）+ **F-06** 简历导入解析（PDF/DOCX，8h）+ **F-07** BYOK 设置页最小版（4h） | 30h | ✅ **验收通过（2026-10-25）** |
-| **I3** | 投递流程管理：13 状态机 + 看板 + 面试记录 | 20h | ⬜ 未开始 |
-| **I4** | 质量基线与"可交付"：评测集 50 条、E2E、一键启动文档、**无状态只读展示页** | 26h | ⬜ 未开始 |
+| **I3** | 投递流程管理：13 状态机 + 看板拖拽（零依赖）+ 截止倒计时 + 去重合并（[F-08](spec/features/F-08-status-kanban.md)） | 20h | ✅ **验收通过（2026-11-11）** |
+| **I4** | 质量基线与可交付：50 条评测集 + CI 门 + 一键启动 + 只读 Demo（[F-09](spec/features/F-09-quality-baseline.md)） | 40h | ✅ **验收通过（2026-11-15）** |
 | **I5** | 智能匹配：向量检索 + 五维评分调参 + **F-10 技能图谱与差距分析**（"先补什么"） | 30h + 15h | ⬜ 未开始 |
 | **I6** | 材料生成与校验：简历视图 + bullet 生成 + 验证器优先生成（含弃答） | 22h | ⬜ 未开始 |
 | **I7** | 提醒与通知：截止 T-1 单渠道最小版（**第一个可牺牲增量**） | 6h | ⬜ 未开始 |
@@ -128,6 +131,11 @@ npm run accept        75 / 75（F-01 自动可验部分）
 ---
 
 ## 4. 安装与使用
+
+**最简单**：双击项目根目录的 `start.bat`（自动起数据层→迁移→构建→打开浏览器）。
+> 干净机器首次安装请看 **[快速开始（docs/getting-started.md）](docs/getting-started.md)**：三步跑通 + 常见坑清单。
+> 不想每次敲终端？**双击项目根目录的 `start.bat`** 即可（自动起数据层→迁移→构建→打开浏览器）。
+> 部署/隐私边界选择见 **[本地启动与部署选择（docs/local-deployment.md）](docs/local-deployment.md)**。
 
 ### 4.1 前置要求
 
@@ -241,6 +249,11 @@ LLM_VISION_BASE_URL=         # 留空 = 该 provider 内置地址
 |---|---|---|
 | `npm test` | 核心单测（node:test，244 例） | 仅 Node |
 | `npm run verify:f02` | **F-02 验收**：数据层 5 项 + 逻辑层 5 项（`--real` 加真实模型） | 仅 Node（有库更佳） |
+| `npm run eval` | **抽取质量评测**（rules 模式，离线确定性；`--subset=10` 快速跑） | 仅 Node |
+| `npm run eval:replay` | 回放已录制 fixtures 做回归（CI 用） | 仅 Node |
+| `npm run eval:record` | 用真实模型录制 fixtures（需要 Key，约 ¥0.02/条） | 需要模型 |
+| `npm run seed:f08` | 生成 F-08 验收演示数据（6 个岗位覆盖多状态；`--clean` 清理） | Docker + 已迁移 |
+| `npm run verify:f08` | **F-08 验收**：状态机矩阵 + 库结构 + 真实链路 13 项（`--report` 写报告） | Docker + 已迁移 |
 | `npm run verify:ocr` | **截图 OCR 验收**：真实截图 → 识别 → 抽取，6 项关键检查（`--image` 指定截图） | 需要视觉模型 |
 | `npm run workspace:export` | 导出 CSV 台账（岗位 / 技能 / **经历库** / 原始 JD） | Docker |
 | `npm run workspace:sync` | 台账同步回库（`--dry-run` 可预演） | Docker |
@@ -248,6 +261,15 @@ LLM_VISION_BASE_URL=         # 留空 = 该 provider 内置地址
 | `npm run workspace:sync` | **同步台账回库**（F-03）：只采纳可改列，`--dry-run` 可预演 | Docker |
 | `npm run accept` | **F-01 验收**：4 红线 + 13 AC + 评分卡 | 仅 Node |
 | `npm run check:adapter` | 业务代码零厂商 SDK（红线③） | 仅 Node |
+| `npm run db:backfill-category` | 按规则回填存量岗位分类（`--force` 覆盖手改值） | Docker |
+| `npm run clean:synthetic` | 清理开发期合成/错误数据（默认 dry-run，`--apply` 软删除） | Docker |
+| `npm run app` | **一键启动**：数据层 + 迁移 + 构建(首次) + 打开浏览器（= 双击 `start.bat`） | Docker |
+| `npm run app -- --lan` | 允许局域网访问（手机/平板；⚠️ 无鉴权，勿在公共 Wi-Fi） | Docker |
+| `npm run shortcut` | 在桌面创建一键启动快捷方式（Windows） | Windows |
+| `npm run autostart` | 开机自启（隐藏窗口；`-- --remove` 取消） | Windows |
+| `npm run preflight` | **环境体检**：Node/依赖/.env/Docker/端口/迁移 逐项诊断 | 仅 Node |
+| `npm run verify:i4` | **I4 验收**：评测基线 + CI 门 + 启动文档 + 只读 Demo 共 15 项 | 仅 Node |
+| `npm run demo` | 只读演示模式（`DEMO_MODE=1`，写接口 403） | 仅 Node |
 | `npm run doctor` | 环境/配置/安全自检，11 项 + 修复建议 | 仅 Node |
 | `npm run setup` | 一键启动（幂等：`.env` → 容器 → 迁移 → 健康检查） | Docker |
 | `npm run db:migrate` | 应用迁移（幂等 SQL，可重复执行） | Docker |
@@ -381,3 +403,6 @@ git check-ignore -v data/workspace/岗位管理表.csv   # 应输出规则，说
 npm run check:sensitive -- --all                   # 全仓扫描，应无命中
 git status --short                                 # data/ 不应出现在列表里
 ```
+
+- [验收指南 F-02 修订版（删除岗位 / 分类与定位 / 台账两列）](docs/acceptance-guide-F02-revision.md)
+- [验收指南 F-08（I3 状态机与看板）](docs/acceptance-guide-F08.md)

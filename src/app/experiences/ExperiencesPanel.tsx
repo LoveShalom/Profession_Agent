@@ -63,6 +63,8 @@ export default function ExperiencesPanel() {
   }) | null>(null);
   const [resumeReady, setResumeReady] = useState(0);
   const [includeDeleted, setIncludeDeleted] = useState(false);
+  /** 已删除条数：让「显示已删除」入口显眼（否则用户找不到） */
+  const [deletedCount, setDeletedCount] = useState(0);
   const [typeFilter, setTypeFilter] = useState<'all' | ExperienceType>('all');
   const [mode, setMode] = useState<'manual' | 'text'>('manual');
   const [rawText, setRawText] = useState('');
@@ -82,6 +84,14 @@ export default function ExperiencesPanel() {
       const query = new URLSearchParams();
       if (includeDeleted) query.set('includeDeleted', '1');
       if (typeFilter !== 'all') query.set('type', typeFilter);
+      // 顺带查已删除数量（仅用于入口提示）
+      void fetch('/api/experiences?includeDeleted=1', { cache: 'no-store' })
+        .then(async (extra) => {
+          const payload = (await extra.json()) as { items?: Array<{ deletedAt?: string | null }> };
+          setDeletedCount((payload.items ?? []).filter((item) => item.deletedAt).length);
+        })
+        .catch(() => undefined);
+
       const response = await fetch(`/api/experiences${query.size > 0 ? '?' + query.toString() : ''}`, { cache: 'no-store' });
       const data = (await response.json()) as { total?: number; resumeReady?: number; items?: ListItem[]; error?: string };
       if (data.error) {
@@ -295,9 +305,10 @@ export default function ExperiencesPanel() {
                 </option>
               ))}
             </select>
-            <label className="row small" style={{ gap: 6 }}>
+            <label className="row small" style={{ gap: 6, cursor: 'pointer' }} title="显示已软删除的经历（可恢复）">
               <input type="checkbox" checked={includeDeleted} onChange={(event) => setIncludeDeleted(event.target.checked)} />
-              显示已删除
+              {includeDeleted ? '隐藏已删除' : '显示已删除'}
+              {deletedCount > 0 ? `（${deletedCount}）` : ''}
             </label>
           </div>
         </div>

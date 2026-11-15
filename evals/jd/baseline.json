@@ -1,0 +1,16 @@
+{
+  "mode": "rules",
+  "macro": 0.9106,
+  "perField": {
+    "company": 1,
+    "title": 1,
+    "cities": 1,
+    "deadline": 0.8,
+    "salary": 1,
+    "skills": 0.6979
+  },
+  "items": 40,
+  "datasetSha256": "0ed52fd2357ccedc83bc3dc31ae97d2e3b6cd7e0c9a6959f9de962d797e55d5e",
+  "createdAt": "2026-11-15T07:30:11.994Z",
+  "note": "基线是质量契约：提升时更新并记录；退化超过 3pt 会使 eval 失败"
+}

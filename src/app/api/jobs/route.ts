@@ -84,6 +84,8 @@ export async function GET(request: Request): Promise<Response> {
   const limit = Number(url.searchParams.get('limit') ?? '50');
   const status = url.searchParams.get('status') ?? undefined;
   const onlyNeedsReview = url.searchParams.get('onlyNeedsReview') === '1';
+  const sortParam = url.searchParams.get('sort');
+  const sort = sortParam === 'priority' || sortParam === 'updated' ? sortParam : 'deadline';
 
   try {
     const repo = await getJobRepository();
@@ -91,8 +93,9 @@ export async function GET(request: Request): Promise<Response> {
       limit: Number.isFinite(limit) ? limit : 50,
       ...(status ? { status } : {}),
       onlyNeedsReview,
+      sort,
     });
-    return Response.json(result);
+    return Response.json({ ok: true, ...result });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     return Response.json({ error: { code: 'E_DB', message } }, { status: 500 });

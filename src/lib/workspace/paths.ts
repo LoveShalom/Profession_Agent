@@ -31,6 +31,8 @@ export interface WorkspacePaths {
   attachmentsDir: string;
   /** 经历库导出（只读备份，不参与双向同步） */
   experiencesTable: string;
+  /** 按投递定位拆分的只读子表（主投/副投/碰运气） */
+  tierTables: { primary: string; secondary: string; casual: string };
   /** 导出元数据（记录导出时间，用于区分「表格落后」与「用户删行」） */
   exportMeta: string;
 }
@@ -54,6 +56,11 @@ export function workspacePaths(dir: string = resolveWorkspaceDir()): WorkspacePa
     attachmentsDir: path.join(dir, '原始JD', 'attachments'),
     backupDir: path.join(dir, '.backup'),
     experiencesTable: path.join(dir, '经历库.csv'),
+    tierTables: {
+      primary: path.join(dir, '岗位表-主投.csv'),
+      secondary: path.join(dir, '岗位表-副投.csv'),
+      casual: path.join(dir, '岗位表-碰运气.csv'),
+    },
     exportMeta: path.join(dir, '.export-meta.json'),
   };
 }
@@ -77,6 +84,12 @@ export const README_TEXT = `岗位台账使用说明（由工具生成，可自�
 
 【不要改的列】（只读；改了不生效，下次导出会被恢复）
   岗位ID、_rev、经验、技能·推测、待确认字段、剩余天数
+
+【按投递定位拆分的子表】（只看，不用同步）
+  每次导出会额外生成三张只读子表：
+    岗位表-主投.csv / 岗位表-副投.csv / 岗位表-碰运气.csv
+  它们列与主表一致，只是按"投递定位"分好组，方便你分开看/打印。
+  **要改数据请改「岗位管理表.csv」**（那才是可编辑、可同步的源）；子表每次导出都会重新生成，改了不会生效。
 
 【安全机制】
   · 每次同步前会自动备份到 .backup/（保留最近 5 份）

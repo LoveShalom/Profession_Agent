@@ -11,11 +11,12 @@
  *   3. **强制新建也走同一入口**（`forceCreate: true`），保证技能属性一起写入。
  */
 
-import type { JobRepository } from '../db/types.ts';
+import type { JobPatch, JobRepository } from '../db/types.ts';
 import type { FieldId } from '../schemas/field-dict.ts';
 import { describeBlockers, validateExtraction, type ValidationBlocker, type ValidateResult } from '../pipeline/validate.ts';
 import type { JdExtraction } from '../schemas/jd.ts';
 
+import { effectiveTier } from './category.ts';
 import { toJobDraft, toJobSkillRows, type JobDraft } from './mapping.ts';
 
 export type SaveJobStatus = 'created' | 'duplicate' | 'blocked';
@@ -125,6 +126,14 @@ export interface ListJobsResult {
     cities: string[];
     status: string;
     priority: string;
+    /** 岗位分类 code（F-02 修订） */
+    category: string | null;
+    /** 有效投递定位（含手动覆盖） */
+    tier: 'primary' | 'secondary' | 'casual';
+    tierLabel: string;
+    tierOverridden: boolean;
+    /** 软删除时间（null = 未删除） */
+    deletedAt: string | null;
     deadlineKind: string;
     deadline: string | null;
     skills: string[];
@@ -134,21 +143,109 @@ export interface ListJobsResult {
 }
 
 /** 列表（F-02 的列表视图用；筛选/排序的完整版本在 I2 的 F2 任务里） */
+/** 允许通过 PATCH 修改的字段白名单（分类/优先级/备注/跟进时间；状态走专用接口） */
+export type JobPatchParseResult =
+  | { ok: true; patch: JobPatch }
+  | { ok: false; message: string };
+
+export function resolveJobPatch(input: Record<string, unknown>): JobPatchParseResult {
+  const patch: JobPatch = {};
+
+  if ('category' in input) {
+    const value = input['category'];
+    if (value !== null && typeof value !== 'string') return { ok: false, message: 'category 必须是字符串或 null' };
+    const trimmed = typeof value === 'string' ? value.trim() : null;
+    if (trimmed !== null && trimmed.length > 80) return { ok: false, message: 'category 最长 80 字符' };
+    patch.category = trimmed === null || trimmed.length === 0 ? null : trimmed;
+  }
+  if ('priority' in input) {
+    const value = input['priority'];
+    if (value !== '高' && value !== '中' && value !== '低') return { ok: false, message: 'priority 只能是 高/中/低' };
+    patch.priority = value;
+  }
+  if ('notes' in input) {
+    const value = input['notes'];
+    if (typeof value !== 'string') return { ok: false, message: 'notes 必须是字符串' };
+    if (value.length > 4000) return { ok: false, message: 'notes 最长 4000 字' };
+    patch.notes = value;
+  }
+  if ('nextActionAt' in input) {
+    const value = input['nextActionAt'];
+    if (value !== null && typeof value !== 'string') return { ok: false, message: 'nextActionAt 必须是 ISO 字符串或 null' };
+    if (typeof value === 'string' && Number.isNaN(Date.parse(value))) return { ok: false, message: 'nextActionAt 不是合法时间' };
+    patch.nextActionAt = value as string | null;
+  }
+  if ('campaignTier' in input) {
+    const value = input['campaignTier'];
+    if (value !== null && value !== 'primary' && value !== 'secondary' && value !== 'casual') {
+      return { ok: false, message: 'campaignTier 只能是 primary/secondary/casual 或 null' };
+    }
+    patch.campaignTier = value as JobPatch['campaignTier'];
+  }
+  if ('nextAction' in input) {
+    const value = input['nextAction'];
+    if (value !== null && typeof value !== 'string') return { ok: false, message: 'nextAction 必须是字符串或 null' };
+    patch.nextAction = (typeof value === 'string' ? value.trim() : null) || null;
+  }
+  return { ok: true, patch };
+}
+
+export type JobSortKey = 'updated' | 'deadline' | 'priority';
+
+const PRIORITY_ORDER: Record<string, number> = { 高: 0, 中: 1, 低: 2 };
+
+/** 排序：deadline 升序（无截止排最后）→ priority 高到低 → createdAt 倒序 */
+function sortJobs<T extends { deadline: string | null; priority: string; createdAt: string }>(items: T[], sort: JobSortKey): T[] {
+  const sorted = [...items];
+  if (sort === 'priority') {
+    sorted.sort(
+      (a, b) =>
+        (PRIORITY_ORDER[a.priority] ?? 9) - (PRIORITY_ORDER[b.priority] ?? 9) ||
+        b.createdAt.localeCompare(a.createdAt),
+    );
+    return sorted;
+  }
+  if (sort === 'updated') return sorted.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  // deadline（默认）：有截止的按时间升序在前，无截止的排最后
+  sorted.sort((a, b) => {
+    if (a.deadline === null && b.deadline === null) return b.createdAt.localeCompare(a.createdAt);
+    if (a.deadline === null) return 1;
+    if (b.deadline === null) return -1;
+    return a.deadline.localeCompare(b.deadline);
+  });
+  return sorted;
+}
+
 export async function listJobs(
   repo: JobRepository,
   userId: string,
-  options: { limit?: number; status?: string; onlyNeedsReview?: boolean } = {},
+  options: {
+    limit?: number;
+    status?: string;
+    onlyNeedsReview?: boolean;
+    sort?: JobSortKey;
+    category?: string;
+    includeDeleted?: boolean;
+    tier?: 'primary' | 'secondary' | 'casual';
+  } = {},
 ): Promise<ListJobsResult> {
   const [items, total] = await Promise.all([repo.list(userId, options), repo.count(userId)]);
+  const sorted = sortJobs(items, options.sort ?? 'deadline');
   return {
     total,
-    items: items.map((job) => ({
+    items: sorted.map((job) => ({
       id: job.id,
       company: job.company,
       title: job.title,
       cities: job.cities,
       status: job.status,
       priority: job.priority,
+      category: job.category,
+      ...(() => {
+        const effective = effectiveTier(job.category, job.campaignTier);
+        return { tier: effective.tier, tierLabel: effective.label, tierOverridden: effective.overridden };
+      })(),
+      deletedAt: job.deletedAt,
       deadlineKind: job.deadline_kind,
       deadline: job.deadline,
       skills: job.skills,

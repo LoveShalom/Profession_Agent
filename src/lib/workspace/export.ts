@@ -11,10 +11,11 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
-import type { JobRepository } from '../db/types.ts';
+import type { JobRepository, JobRecord } from '../db/types.ts';
+import { effectiveTier, type CampaignTier } from '../jobs/category.ts';
 import type { ExperienceRecord } from '../experience/service.ts';
 
-import { encodeCsvDocument, parseCsv } from './csv.ts';
+import { decodeCsvBuffer, encodeCsvDocument, parseCsv } from './csv.ts';
 import { README_TEXT, workspacePaths, type WorkspacePaths } from './paths.ts';
 import {
   MAIN_HEADERS,
@@ -55,6 +56,10 @@ export interface ExportResult {
   jobCount: number;
   skillCount: number;
   experienceCount: number;
+  /** 按定位分组的岗位数 */
+  tierCounts: Record<CampaignTier, number>;
+  /** 导出的三类子表文件 */
+  tierTables: { primary: string; secondary: string; casual: string };
   files: string[];
   /** 保留的用户自建列 */
   preservedColumns: string[];
@@ -75,7 +80,7 @@ async function loadCustomColumns(mainTable: string): Promise<{ headers: string[]
   const empty = { headers: [] as string[], values: new Map<string, Map<string, string>>() };
   if (!(await fileExists(mainTable))) return empty;
 
-  const parsed = parseCsv(await readFile(mainTable, 'utf8'));
+  const parsed = parseCsv(decodeCsvBuffer(await readFile(mainTable)).text);
   const header = parsed.rows[0];
   if (!header) return empty;
 
@@ -114,17 +119,39 @@ export async function exportWorkspace(
 
   const jobs = await repo.list(userId, { limit: options.limit ?? 500 });
 
+  // 按投递定位排序（主投 → 副投 → 碰运气），同组内按截止时间升序（无截止置后）
+  const tierRank: Record<CampaignTier, number> = { primary: 0, secondary: 1, casual: 2 };
+  const tierOf = (job: JobRecord): CampaignTier => effectiveTier(job.category, job.campaignTier).tier;
+  const orderedJobs = [...jobs].sort((a, b) => {
+    const rank = tierRank[tierOf(a)] - tierRank[tierOf(b)];
+    if (rank !== 0) return rank;
+    if (a.deadline === null && b.deadline === null) return b.createdAt.localeCompare(a.createdAt);
+    if (a.deadline === null) return 1;
+    if (b.deadline === null) return -1;
+    return a.deadline.localeCompare(b.deadline);
+  });
+
   const custom = await loadCustomColumns(paths.mainTable);
   const mainRows: string[][] = [[...MAIN_HEADERS, ...custom.headers]];
   const skillRows: string[][] = [[...SKILL_HEADERS]];
+  // 三类子表（只读视图）：列与主表一致，便于在 Excel 里按主投/副投/碰运气分别看
+  const tierRows: Record<CampaignTier, string[][]> = {
+    primary: [[...MAIN_HEADERS, ...custom.headers]],
+    secondary: [[...MAIN_HEADERS, ...custom.headers]],
+    casual: [[...MAIN_HEADERS, ...custom.headers]],
+  };
+  const tierCounts: Record<CampaignTier, number> = { primary: 0, secondary: 0, casual: 0 };
 
-  for (const job of jobs) {
+  for (const job of orderedJobs) {
     const skills = await repo.listSkills(job.id);
     const row = jobToRow(job, skills, now);
     for (const header of custom.headers) {
       row.push(custom.values.get(job.id)?.get(header) ?? '');
     }
     mainRows.push(row);
+    const tier = tierOf(job);
+    tierRows[tier].push([...row]);
+    tierCounts[tier] += 1;
 
     for (const skill of skills) {
       skillRows.push([
@@ -172,10 +199,13 @@ export async function exportWorkspace(
   await writeFile(paths.experiencesTable, encodeCsvDocument(experienceRows), 'utf8');
 
   await writeFile(paths.mainTable, encodeCsvDocument(mainRows), 'utf8');
+  await writeFile(paths.tierTables.primary, encodeCsvDocument(tierRows.primary), 'utf8');
+  await writeFile(paths.tierTables.secondary, encodeCsvDocument(tierRows.secondary), 'utf8');
+  await writeFile(paths.tierTables.casual, encodeCsvDocument(tierRows.casual), 'utf8');
   // 记录导出时间：同步时用它区分「导出后新增、表格还没跟上」与「用户真的删了行」
   await writeFile(
     paths.exportMeta,
-    `${JSON.stringify({ exportedAt: now.toISOString(), jobCount: jobs.length, experienceCount: experiences.length, version: 2 }, null, 2)}\n`,
+    `${JSON.stringify({ exportedAt: now.toISOString(), jobCount: jobs.length, experienceCount: experiences.length, tierCounts, version: 3 }, null, 2)}\n`,
     'utf8',
   );
   await writeFile(paths.skillsTable, encodeCsvDocument(skillRows), 'utf8');
@@ -188,7 +218,18 @@ export async function exportWorkspace(
     jobCount: jobs.length,
     skillCount: skillRows.length - 1,
     experienceCount: experiences.length,
-    files: [paths.mainTable, paths.skillsTable, paths.experiencesTable, paths.readme, paths.rawDir],
+    tierCounts,
+    tierTables: paths.tierTables,
+    files: [
+      paths.mainTable,
+      paths.tierTables.primary,
+      paths.tierTables.secondary,
+      paths.tierTables.casual,
+      paths.skillsTable,
+      paths.experiencesTable,
+      paths.readme,
+      paths.rawDir,
+    ],
     preservedColumns: custom.headers,
     warnings,
   };

@@ -10,7 +10,15 @@ interface WorkspaceStatus {
   rows: number;
   lastExportAt: string | null;
   attachments: number;
-  files: { mainTable: string; skillsTable: string; readme: string; rawDir: string };
+  files: {
+    mainTable: string;
+    primaryTable?: string;
+    secondaryTable?: string;
+    casualTable?: string;
+    skillsTable: string;
+    readme: string;
+    rawDir: string;
+  };
 }
 
 interface SyncReport {
@@ -157,6 +165,10 @@ export default function WorkspacePanel() {
                 <th>文件</th>
                 <td className="small">
                   <div>{status.files.mainTable}</div>
+                  <div className="muted">按定位拆分的只读子表：</div>
+                  <div>{status.files.primaryTable ?? '岗位表-主投.csv'}</div>
+                  <div>{status.files.secondaryTable ?? '岗位表-副投.csv'}</div>
+                  <div>{status.files.casualTable ?? '岗位表-碰运气.csv'}</div>
                   <div>{status.files.skillsTable}</div>
                   <div>{status.files.rawDir}</div>
                 </td>

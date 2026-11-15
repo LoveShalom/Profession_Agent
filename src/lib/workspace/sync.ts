@@ -17,10 +17,11 @@ import type { JobDraft, JobSkillRow } from '../jobs/mapping.ts';
 import { buildFingerprint } from '../pipeline/dedupe.ts';
 import type { FieldId } from '../schemas/field-dict.ts';
 import type { SkillItem } from '../schemas/jd.ts';
+import { categoryCodeFromCell, effectiveTier, parseTierCell } from '../jobs/category.ts';
 
 type SkillProficiency = SkillItem['proficiency'];
 
-import { encodeCsvDocument, parseCsv } from './csv.ts';
+import { decodeCsvBuffer, encodeCsvDocument, parseCsv } from './csv.ts';
 import { workspacePaths } from './paths.ts';
 import {
   MAIN_COLUMNS,
@@ -92,6 +93,8 @@ function draftFromCells(values: Record<string, string>, now: Date): JobDraft | n
     company,
     title,
     job_type: values['job_type']?.trim() || '其他',
+    // 台账「类别」列存中文标签，读回时反查 code（也接受自定义字符串）
+    category: categoryCodeFromCell(values['category'] ?? ''),
     graduation_year: parseNumberCell(values['graduation_year'] ?? ''),
     city: cities[0] ?? null,
     cities,
@@ -158,7 +161,13 @@ export async function syncWorkspace(
 
   let content: string;
   try {
-    content = await readFile(paths.mainTable, 'utf8');
+    const decoded = decodeCsvBuffer(await readFile(paths.mainTable));
+  content = decoded.text;
+  if (decoded.encoding !== 'utf-8' && decoded.encoding !== 'utf-8-bom') {
+    report.warnings.push(
+      `检测到台账编码为 ${decoded.encoding}（多为 Excel 另存 CSV 所致），已自动按该编码解析；下次导出会写回 UTF-8。`,
+    );
+  }
   } catch {
     report.warnings.push(`找不到台账文件：${paths.mainTable}（先运行 npm run workspace:export）`);
     return report;
@@ -290,6 +299,30 @@ export async function syncWorkspace(
       patch.education = education;
       changedFields.push('education');
     }
+    // 投递定位：写的是"有效值"，读回时反查覆盖值；空 = 跟随分类
+    if (index.has('投递定位')) {
+      const nextTier = parseTierCell(readField('campaignTier'));
+      const current = job.campaignTier;
+      const currentEffective = effectiveTier(job.category, current).tier;
+      if (nextTier !== currentEffective) {
+        patch.campaignTier = nextTier;
+        changedFields.push('campaignTier');
+      } else if (nextTier === null && current !== null) {
+        // 清空单元格 = 恢复"跟随分类"（显示可能不变，但覆盖语义被清除）
+        patch.campaignTier = null;
+        changedFields.push('campaignTier');
+      }
+    }
+
+    // 类别：只有 CSV 里确实有该列时才处理（旧版台账没有这一列 -> 不能把分类清空）
+    if (index.has('类别')) {
+      const nextCategory = categoryCodeFromCell(readField('category'));
+      if ((nextCategory ?? null) !== (job.category ?? null)) {
+        patch.category = nextCategory;
+        changedFields.push('category');
+      }
+    }
+
     applyNumber('graduation_year', job.graduation_year);
     applyNumber('salary_min', job.salary_min);
     applyNumber('salary_max', job.salary_max);

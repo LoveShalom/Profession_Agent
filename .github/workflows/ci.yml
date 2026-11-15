@@ -2,14 +2,18 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, master]
   pull_request:
+  workflow_dispatch:
 
-# I0 的 CI 门（F-01 §4.1 / E-08 裁决）：
-#   1) 适配层纯净度检查（AC-13 / 红线③）—— 零依赖，必跑
+# CI 门（F-01 §4.1 → F-09 §2.2）：
+#   1) 适配层纯净度（AC-13 / 红线③）—— 零依赖，必跑
 #   2) 核心单测（node:test，零依赖）—— 必跑
 #   3) doctor --no-network —— 必跑（配置与安全策略自检）
-#   4) lint / typecheck / 评测 —— 需要 npm install，因此仅在 main 或手动触发时跑
+#   4) lint / typecheck / 评测 / 敏感扫描 —— 需要 npm install，在 full job 跑
+#
+# 设计原则（F-09 §2.3）：**CI 必须离线可复现**，不依赖 LLM Key / Docker / 真实数据库。
+# 评测走 rules 模式（确定性）；replay fixtures 由作者本地录制。
 jobs:
   core:
     name: 核心检查（零依赖）
@@ -18,7 +22,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '24'
 
       - name: 适配层纯净度（业务代码零厂商 SDK）
         run: node scripts/check-adapter-purity.mjs
@@ -30,18 +34,18 @@ jobs:
         run: node scripts/doctor.mjs --no-network || true
 
   full:
-    name: 全量检查（依赖 lint / typecheck）
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    name: 全量检查（lint / typecheck / 评测）
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '24'
           cache: npm
 
       - name: 安装依赖
-        run: npm install --no-audit --no-fund
+        run: npm ci
 
       - name: Lint
         run: npm run lint
@@ -49,9 +53,17 @@ jobs:
       - name: 类型检查
         run: npm run typecheck
 
-      # Promptfoo 评测需要 LLM API Key（E-08：仅 main 与手动触发；fork PR 不跑）
-      - name: Prompt 评测（需要 secrets.LLM_API_KEY）
-        if: ${{ secrets.LLM_API_KEY != '' }}
-        env:
-          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
-        run: echo "评测入口在 F-02 落地后接入（Promptfoo）"
+      - name: 单元测试（不连数据库）
+        run: npm test
+
+      - name: 评测集 lock 校验（防止偷改评测集）
+        run: node scripts/gen-eval-dataset.mjs --check
+
+      - name: 抽取质量评测（rules 模式，离线确定性）
+        run: npm run eval
+
+      - name: 敏感文件二次扫描（防泄露双保险）
+        run: node scripts/check-sensitive.mjs --all
+
+      # 说明：CI 里不跑 `next build` —— 本地优先应用，构建验证由作者本地做（README 有说明）；
+      # 也不跑任何需要 LLM Key / Docker 的步骤：CI 离线可复现是硬约束。

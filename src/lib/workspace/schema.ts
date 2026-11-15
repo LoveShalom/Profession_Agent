@@ -10,6 +10,7 @@
 import type { JobRecord } from '../db/types.ts';
 import type { JobSkillRow } from '../jobs/mapping.ts';
 import type { SkillItem } from '../schemas/jd.ts';
+import { categoryLabel, effectiveTier } from '../jobs/category.ts';
 
 /** 技能三属性别名（直接从字段契约推导，避免与 jd.ts 重复定义） */
 export type SkillProficiency = SkillItem['proficiency'];
@@ -32,6 +33,9 @@ export const MAIN_COLUMNS: readonly MainColumn[] = [
   { header: '_rev', kind: 'readonly' },
   { header: '公司', kind: 'editable', field: 'company' },
   { header: '岗位', kind: 'editable', field: 'title' },
+  { header: '类别', kind: 'editable', field: 'category' },
+  /** 投递定位：写有效值（主投/副投/碰运气），读回时反查覆盖值；空的 = 跟随分类 */
+  { header: '投递定位', kind: 'editable', field: 'campaignTier' },
   { header: '城市', kind: 'editable', field: 'cities' },
   { header: '招聘类型', kind: 'editable', field: 'job_type' },
   { header: '届别', kind: 'editable', field: 'graduation_year' },
@@ -120,6 +124,8 @@ export function jobToRow(job: JobRecord, skills: readonly JobSkillRow[], now: Da
     String(job.revision),
     job.company,
     job.title,
+    categoryLabel(job.category),
+    effectiveTier(job.category, job.campaignTier).label,
     formatCities(job.cities),
     job.job_type,
     num(job.graduation_year),

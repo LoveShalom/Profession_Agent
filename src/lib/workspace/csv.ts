@@ -38,6 +38,35 @@ export function encodeCsvDocument(rows: readonly (readonly string[])[]): string 
   return `${UTF8_BOM}${encodeCsv(rows)}\r\n`;
 }
 
+export type CsvEncoding = 'utf-8' | 'utf-8-bom' | 'utf-16le' | 'gb18030';
+
+/**
+ * 读取 CSV 时自动识别编码。
+ *
+ * 为什么必须做：**中文版 Excel 另存为 CSV 默认用 ANSI（GBK）编码**。
+ * 用户用 Excel 改完台账保存 → 文件变 GBK → 若只按 UTF-8 读会整表乱码，
+ * 表头认不出「岗位ID」导致同步被拒（这是实际发生过的 bug）。
+ *
+ * 判定顺序：BOM（UTF-8 / UTF-16LE）→ 严格 UTF-8 → 回退 GB18030（GBK 的超集）。
+ */
+export function decodeCsvBuffer(input: Uint8Array | Buffer): { text: string; encoding: CsvEncoding } {
+  const bytes = Buffer.isBuffer(input) ? input : Buffer.from(input);
+
+  if (bytes.length >= 3 && bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) {
+    return { text: new TextDecoder('utf-8').decode(bytes.subarray(3)), encoding: 'utf-8-bom' };
+  }
+  if (bytes.length >= 2 && bytes[0] === 0xff && bytes[1] === 0xfe) {
+    return { text: new TextDecoder('utf-16le').decode(bytes.subarray(2)), encoding: 'utf-16le' };
+  }
+  try {
+    const text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+    return { text, encoding: 'utf-8' };
+  } catch {
+    // 不是合法 UTF-8：按 GB18030 解（覆盖 GBK / GB2312）
+    return { text: new TextDecoder('gb18030').decode(bytes), encoding: 'gb18030' };
+  }
+}
+
 export interface CsvParseResult {
   rows: string[][];
   /** 解析过程中的宽容处理记录（例如引号未闭合） */
